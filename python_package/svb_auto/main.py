@@ -119,6 +119,8 @@ class App:
             self.map_handlers[AppState.BATTLE_PLAYER_TURN] = self.on_player_turn_skip
 
         # some status variables
+        self.fail_count = 0  # 用于记录失败次数，部分当前没处理的状态可能导致死循环，此时会尝试点击屏幕中央，然后返回 UNKNOWN 状态
+
     def abs_position(self, relative_position: tuple[float, float]) -> tuple[int, int]:
         """
         将相对位置转换为绝对位置
@@ -143,8 +145,16 @@ class App:
             except Exception as e:
                 print(f"执行操作时发生错误: {e}")
                 current_state = AppState.UNKNOWN
+            
             time.sleep(self.screen_interval)  # 等待一段时间，避免过于频繁的操作
-    
+            if current_state == AppState.UNKNOWN:
+                self.fail_count += 1
+                if self.fail_count >= MAX_FAILURE_COUNT:
+                    print("连续失败次数过多，点击屏幕中央")
+                    self.click_center()
+                    
+            else:
+                self.fail_count = 0
     def click_center(self):
         """
         点击屏幕中央
