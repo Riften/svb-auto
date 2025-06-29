@@ -21,6 +21,7 @@ class AppState(Enum):
     MAIN = auto() # 应用在主界面
     BATTLE_SELECT = auto() # 在对战模式选择界面
     TREASURE_RESULT = auto() # 宝箱奖励结果界面，点击跳过
+    NETWORK_ISSUE = auto() # 网络不稳定弹出超时等对话框
 
     # 进入对战之后的状态
     BATTLE_DEFAULT = auto() # 默认对战状态
@@ -41,6 +42,7 @@ map_state_template = {
     AppState.BATTLE_SWAP_CARD: (["decision"], MatchOperator.OR),
     AppState.BATTLE_PLAYER_TURN: (["end_round"], MatchOperator.OR),
     AppState.TREASURE_RESULT: (["treasure_result"], MatchOperator.OR),
+    AppState.NETWORK_ISSUE: (['retry'], MatchOperator.OR)
 }
 
 map_battle_state_template = {
@@ -110,6 +112,7 @@ class App:
             AppState.BATTLE_SWAP_CARD: self.on_drop_card,
             AppState.BATTLE_PLAYER_TURN: self.on_player_turn,
             AppState.TREASURE_RESULT: self.on_treasure_result,
+            AppState.NETWORK_ISSUE: self.on_retry,
         }
         if skip_mode:
             # 如果是跳过模式，则只处理对战状态
@@ -447,6 +450,16 @@ class App:
 
         return AppState.BATTLE_DEFAULT
 
+    def on_retry(self):
+        """
+        网络不稳定时点击重试
+        """
+        print("处理网络不稳定情况，点击重试")
+        is_detected = self.detact_and_click(
+            "retry",
+            threshold=0.8,
+        )
+        return AppState.UNKNOWN
     
 
 if __name__ == "__main__":
