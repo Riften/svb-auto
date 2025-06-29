@@ -22,6 +22,7 @@ class AppState(Enum):
     BATTLE_SELECT = auto() # 在对战模式选择界面
     TREASURE_RESULT = auto() # 宝箱奖励结果界面，点击跳过
     NETWORK_ISSUE = auto() # 网络不稳定弹出超时等对话框
+    RETURN_TO_BATTLE = auto() # 返回对战窗口标题，闪退再打开会出现该窗口
 
     # 进入对战之后的状态
     BATTLE_DEFAULT = auto() # 默认对战状态
@@ -42,7 +43,8 @@ map_state_template = {
     AppState.BATTLE_SWAP_CARD: (["decision"], MatchOperator.OR),
     AppState.BATTLE_PLAYER_TURN: (["end_round"], MatchOperator.OR),
     AppState.TREASURE_RESULT: (["treasure_result"], MatchOperator.OR),
-    AppState.NETWORK_ISSUE: (['retry'], MatchOperator.OR)
+    AppState.NETWORK_ISSUE: (['retry'], MatchOperator.OR),
+    AppState.RETURN_TO_BATTLE: (['return_to_battle'], MatchOperator.OR),  # 返回对战窗口标题，闪退再打开会出现该窗口
 }
 
 map_battle_state_template = {
@@ -69,7 +71,8 @@ special_points = {
                     (793/1920, 620/1080),
                     (566/1920, 620/1080),],
     'opponent': (960/1920, 85/1080),  # 对手主站者位置
-    
+    'return_to_battle_negative': (769/1920, 838/1080),  # 返回对战窗口 “否” 按钮位置
+    'return_to_battle_second': (960/1920, 838/1080),  # 返回对战第二个窗口 “确认” 按钮位置
 }
 
 class App:
@@ -147,12 +150,11 @@ class App:
                 current_state = AppState.UNKNOWN
             
             time.sleep(self.screen_interval)  # 等待一段时间，避免过于频繁的操作
-            if current_state == AppState.UNKNOWN:
+            if current_state == AppState.UNKNOWN or current_state == AppState.BATTLE_DEFAULT:
                 self.fail_count += 1
                 if self.fail_count >= MAX_FAILURE_COUNT:
                     print("连续失败次数过多，点击屏幕中央")
                     self.click_center()
-                    
             else:
                 self.fail_count = 0
     def click_center(self):
@@ -204,7 +206,7 @@ class App:
         检测当前对战状态
         """
         print("检测当前对战状态")
-        fail_count = 0
+        
         screen = self.device.screenshot()
         for state, (templates, operator) in map_battle_state_template.items():
             res = []
@@ -222,10 +224,7 @@ class App:
             if is_detected:
                 print(f"检测到对战状态: {state}, 模板: {templates}, 置信度: {value}, 位置: {position}")
                 return state
-        fail_count += 1
-        if fail_count >= MAX_FAILURE_COUNT:
-            print("无法检测到对战状态，返回 UNKNOWN 状态")
-            return AppState.UNKNOWN
+        
         print("未检测到任何已知对战状态，返回 BATTLE_DEFAULT")
         return AppState.BATTLE_DEFAULT
     
@@ -476,6 +475,18 @@ class App:
             "retry",
             threshold=0.8,
         )
+        return AppState.UNKNOWN
+    
+    def on_return_to_battle(self):
+        """
+        处理返回对战窗口的情况
+        """
+        print("处理返回对战窗口")
+        # 点击否按钮
+        self.click_relative(special_points['return_to_battle_negative'])
+        time.sleep(1)
+        # 点击确认按钮
+        self.click_relative(special_points['return_to_battle_second'])
         return AppState.UNKNOWN
     
 
