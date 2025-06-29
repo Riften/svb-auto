@@ -399,14 +399,21 @@ class App:
         print("处理玩家回合")
         print("尝试使用手牌")
         # 点击手牌小图标位置，放大手牌列表
-        self.click_relative(special_points['card_hand_small'])
-        time.sleep(0.2)
+        
         for card_position in special_points['card_hand_large']:
+            self.click_relative(special_points['card_hand_small'])
+            time.sleep(0.2)
             # 从 card_position 拖拽到屏幕中心
             start_pos = self.abs_position(card_position)
             end_pos = (self.image_width // 2, self.image_height // 2)
             self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.1)
+
+            # 部分法术卡牌可能使用后需要确认，或者需要选取对象，这里统一在使用卡牌后点击一下对方主站者，可以有效避免卡死
+            time.sleep(0.1)
+            self.click_relative(special_points['opponent'])
             time.sleep(0.2)
+            
+            
         
         print("尝试进化并攻击对方主站者")
         screen = self.device.screenshot()
@@ -422,7 +429,7 @@ class App:
             # 点击手牌大图标位置，使用手牌
             self.click_relative(field_position)
             time.sleep(0.1)
-            # 进化窗口能否点击的状态非常接近，更简单的匹配方式反而表现更好
+
             if can_super_envolve:
                 print("检测到可以超进化")
                 is_detected = self.detect_and_click(
