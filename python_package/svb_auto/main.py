@@ -5,7 +5,7 @@ from uiautomator2 import Device
 from PIL import Image
 import numpy as np
 from svb_auto.utils import debug_draw_rectangles_relative
-from svb_auto.detact import detect_template_in_area, Detactor
+from svb_auto.detect import detect_template_in_area, Detector
 from svb_auto.utils import crop_rectangle_relative
 import cv2
 from enum import Enum, auto
@@ -94,7 +94,7 @@ class App:
             skip_mode: bool = False,
             app_name = None):
         self.device = connect_with_adbutils(port)
-        self.detector = Detactor(img_dir=img_dir)
+        self.detector = Detector(img_dir=img_dir)
         self.screen_interval = screen_interval
         self.app_name = app_name
 
@@ -103,12 +103,12 @@ class App:
             raise ValueError("无法获取设备屏幕截图，请检查设备连接是否正常。")
         self.image_width, self.image_height = test_screenshot.size
         self.map_handlers = {
-            AppState.UNKNOWN: self.detact_state,
+            AppState.UNKNOWN: self.detect_state,
             AppState.EXITED: self.on_exited,
             AppState.STARTING: self.on_starting,
             AppState.MAIN: self.on_main,
             AppState.BATTLE_SELECT: self.on_battle_select,
-            AppState.BATTLE_DEFAULT: self.detact_battle_state,
+            AppState.BATTLE_DEFAULT: self.detect_battle_state,
             AppState.BATTLE_SWAP_CARD: self.on_drop_card,
             AppState.BATTLE_PLAYER_TURN: self.on_player_turn,
             AppState.TREASURE_RESULT: self.on_treasure_result,
@@ -172,7 +172,7 @@ class App:
         position = self.abs_position(relative_position)
         self.device.click(*position)
 
-    def detact_state(self) -> AppState:
+    def detect_state(self) -> AppState:
         """
         检测当前应用状态
         """
@@ -183,7 +183,7 @@ class App:
             
             for template in templates:
                 # print(f"检测状态: {state}, 模板: {template}")
-                detected, value, position = self.detector.detact_on_screen(
+                detected, value, position = self.detector.detect_on_screen(
                     screen,
                     template_name=template,
                     threshold=0.8
@@ -199,7 +199,7 @@ class App:
         print("未检测到任何已知状态，返回 UNKNOWN")
         return AppState.UNKNOWN
     
-    def detact_battle_state(self) -> AppState:
+    def detect_battle_state(self) -> AppState:
         """
         检测当前对战状态
         """
@@ -209,7 +209,7 @@ class App:
         for state, (templates, operator) in map_battle_state_template.items():
             res = []
             for template in templates:
-                detected, value, position = self.detector.detact_on_screen(
+                detected, value, position = self.detector.detect_on_screen(
                     screen,
                     template_name=template,
                     threshold=0.8
@@ -229,12 +229,12 @@ class App:
         print("未检测到任何已知对战状态，返回 BATTLE_DEFAULT")
         return AppState.BATTLE_DEFAULT
     
-    def detact_and_click(self, 
+    def detect_and_click(self, 
             template_name: str,
             threshold: float = 0.8,
             click_position: tuple[float, float] = None) -> bool:
         screen = self.device.screenshot()
-        is_detected, value, position = self.detector.detact_on_screen(
+        is_detected, value, position = self.detector.detect_on_screen(
             screen,
             template_name=template_name,
             threshold=threshold
@@ -268,22 +268,9 @@ class App:
         fail_count = 0
         if self.app_name is None:
             while True:
-                # screen = self.device.screenshot()
-                # is_detected, value, position = self.detector.detact_on_screen(
-                #     screen,
-                #     template_name="app_icon",
-                #     threshold=0.8
-                # )
-                # if is_detected:
-                #     print(f"检测到应用图标: {is_detected}, 置信度: {value}, 位置: {position}")
-                #     print("点击应用图标启动应用")
-                #     self.device.click(*position)
-                #     # 启动应用耗时较高，可能导致意料之外的超时，这里额外等待一段时间
-                #     time.sleep(5)
-                #     return AppState.STARTING
-                # else:
-                is_detacted = self.detact_and_click("app_icon")
-                if not is_detacted:
+                
+                is_detected = self.detect_and_click("app_icon")
+                if not is_detected:
                     fail_count += 1
                     if fail_count >= MAX_FAILURE_COUNT:
                         print("无法检测到应用图标，返回 UNKNOWN 状态")
@@ -305,7 +292,7 @@ class App:
         fail_count = 0
         while True:
             screen = self.device.screenshot()
-            is_detected, value, position = self.detector.detact_on_screen(
+            is_detected, value, position = self.detector.detect_on_screen(
                 screen,
                 template_name="starting",
                 threshold=0.8
@@ -323,7 +310,7 @@ class App:
             else:
                 # 理论上说，之后会进入主界面。这里为了维持鲁棒性（例如随后处理首次启动的卡包的信息）
                 # 返回 UNKNOWN 状态，重新检测状态
-                return self.detact_state()
+                return self.detect_state()
     def on_treasure_result(self):
         self.click_center()
         return AppState.UNKNOWN
@@ -337,7 +324,7 @@ class App:
         while True:
             screen = self.device.screenshot()
             # 检测是否处于主页对战选项卡
-            is_detected, value, position = self.detector.detact_on_screen(
+            is_detected, value, position = self.detector.detect_on_screen(
                 screen,
                 template_name="private_battle",
                 threshold=0.8
@@ -364,22 +351,18 @@ class App:
         print("处理对战选择界面")
         fail_count = 0
         while True:
-            screen = self.device.screenshot()
-            is_detected, value, position = self.detector.detact_on_screen(
-                screen,
-                template_name="battle_start",
-                threshold=0.8
-            )
-            if is_detected:
-                print(f"检测到对战开始按钮: {is_detected}, 置信度: {value}, 位置: {position}")
-                self.device.click(*position)
+            is_detected = self.detect_and_click('battle_start')
 
-                # 点击后，考虑到存在排队失败等各种因素，直接返回 UNKNOWN 状态，交由状态机判断是否进入了战斗
+            if is_detected:
+                print("检测到对战开始按钮，点击进入对战")
+                # 点击对战开始按钮后，直接返回 UNKNOWN 状态，交由状态机判断是否进入了战斗
                 return AppState.UNKNOWN
             else:
                 fail_count += 1
                 if fail_count >= MAX_FAILURE_COUNT:
                     print("无法处理对战选择界面，返回 UNKNOWN 状态")
+                    # 如果无法检测到对战开始按钮，则点击屏幕中央，尝试重新进入对战选择界面
+                    self.click_center()
                     return AppState.UNKNOWN
                 
     
@@ -400,7 +383,7 @@ class App:
         self.click_relative(special_points['decision'])
         time.sleep(0.2)  # 等待对战状态更新
 
-        self.detact_and_click(
+        self.detect_and_click(
             "end",
             threshold=0.8,
         )
@@ -429,19 +412,19 @@ class App:
             self.click_relative(field_position)
             time.sleep(0.1)
             
-            is_detacted = self.detact_and_click(
+            is_detected = self.detect_and_click(
                 template_name="super_envolve",
                 threshold=0.8,
             )
-            if is_detacted:
+            if is_detected:
                 print("等待超进化")
                 time.sleep(5)
             else:
-                is_detacted = self.detact_and_click(
+                is_detected = self.detect_and_click(
                     template_name="envolve",
                     threshold=0.8,
                 )
-                if is_detacted:
+                if is_detected:
                     print("等待进化")
                     time.sleep(5)
 
@@ -453,7 +436,7 @@ class App:
         self.click_relative(special_points['decision'])
         time.sleep(0.2)  # 等待对战状态更新
         # 检查是否弹出确认对话框
-        self.detact_and_click(
+        self.detect_and_click(
             "end",
             threshold=0.8,
         )
@@ -465,7 +448,7 @@ class App:
         网络不稳定时点击重试
         """
         print("处理网络不稳定情况，点击重试")
-        is_detected = self.detact_and_click(
+        is_detected = self.detect_and_click(
             "retry",
             threshold=0.8,
         )

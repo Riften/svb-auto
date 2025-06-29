@@ -56,7 +56,7 @@ rects = {
     "retry": (958/1920, 757/1080, 1351/1920, 884/1080),  # 网络不稳定时点击重试
 }
 
-class Detactor:
+class Detector:
     def __init__(self, img_dir: str = "imgs_chs_1920_1080"):
         self.all_templates = {}
         self.templates_size = {}
@@ -68,7 +68,7 @@ class Detactor:
                 self.all_templates[key] = np.array(img)
                 self.templates_size[key] = img.size
     
-    def detact_on_screen(
+    def detect_on_screen(
         self,
         screen_shot: Image.Image,
         template_name: str,
