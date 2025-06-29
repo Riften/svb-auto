@@ -155,6 +155,7 @@ class App:
                 if self.fail_count >= MAX_FAILURE_COUNT:
                     print("连续失败次数过多，点击屏幕中央")
                     self.click_center()
+                    current_state = AppState.UNKNOWN # 重置状态为 UNKNOWN
             else:
                 self.fail_count = 0
     def click_center(self):
