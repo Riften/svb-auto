@@ -35,7 +35,12 @@ def detect_template_in_area(
     min_val, max_val, min_loc, max_loc = cv2.minMaxLoc(result)
     
     # 判断是否找到匹配
-    is_found = max_val >= threshold
+    if method in [cv2.TM_SQDIFF, cv2.TM_SQDIFF_NORMED]:
+        # 对于平方差方法，较小的值表示更好的匹配
+        is_found = min_val <= threshold
+        max_val = min_val
+    else:
+        is_found = max_val >= threshold
     
     return is_found, max_val, max_loc
 
@@ -54,6 +59,8 @@ rects = {
     "super_envolve": (22/1920, 168/1080, 660/1920, 563/1080),  # 超进化按钮区域
     'treasure_result': (828/1920, 40/1080, 1102/1920, 118/1080 ),  # 宝箱奖励结果位置，在有宝箱活动的时候检测到该结果则点击跳过
     "retry": (958/1920, 757/1080, 1351/1920, 884/1080),  # 网络不稳定时点击重试
+    "can_envolve": (810/1920, 736/1080, 873/1920, 800/1080),  # 检测是否可以进化
+    "can_super_envolve": (1035/1920, 736/1080, 1115/1920, 800/1080),  # 检测是否可以超进化
 }
 
 class Detector:
@@ -72,7 +79,8 @@ class Detector:
         self,
         screen_shot: Image.Image,
         template_name: str,
-        threshold: float = 0.8
+        threshold: float = 0.8,
+        method=cv2.TM_CCOEFF_NORMED
     ) -> tuple[bool, float, tuple[int, int]]:
 
         img_width, img_height = screen_shot.size
@@ -103,7 +111,8 @@ class Detector:
         is_detected, value, position = detect_template_in_area(
             area_image=area_image,
             template_image=template_img,
-            threshold=threshold
+            threshold=threshold,
+            method=method
         )
         position = (
             rectangle[0] + position[0] + template_size[0] // 2,

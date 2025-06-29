@@ -232,12 +232,14 @@ class App:
     def detect_and_click(self, 
             template_name: str,
             threshold: float = 0.8,
-            click_position: tuple[float, float] = None) -> bool:
+            click_position: tuple[float, float] = None,
+            method=cv2.TM_CCOEFF_NORMED) -> bool:
         screen = self.device.screenshot()
         is_detected, value, position = self.detector.detect_on_screen(
             screen,
             template_name=template_name,
-            threshold=threshold
+            threshold=threshold,
+            method=method
         )
         if is_detected:
             print(f"检测到 {template_name}: {is_detected}, 置信度: {value}, 位置: {position}")
@@ -396,41 +398,56 @@ class App:
         """
         print("处理玩家回合")
         print("尝试使用手牌")
+        # 点击手牌小图标位置，放大手牌列表
+        self.click_relative(special_points['card_hand_small'])
+        time.sleep(0.2)
         for card_position in special_points['card_hand_large']:
-            # 点击手牌小图标位置，放大手牌列表
-            self.click_relative(special_points['card_hand_small'])
-            time.sleep(0.2)
             # 从 card_position 拖拽到屏幕中心
             start_pos = self.abs_position(card_position)
             end_pos = (self.image_width // 2, self.image_height // 2)
-            self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.3)
+            self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.1)
             time.sleep(0.2)
         
         print("尝试进化并攻击对方主站者")
+        screen = self.device.screenshot()
+        can_envolve, value, position = self.detector.detect_on_screen(
+            screen,
+            template_name="can_envolve",
+        )
+        can_super_envolve, value, position = self.detector.detect_on_screen(
+            screen,
+            template_name="can_super_envolve",
+        )
         for field_position in special_points['card_field']:
             # 点击手牌大图标位置，使用手牌
             self.click_relative(field_position)
             time.sleep(0.1)
-            
-            is_detected = self.detect_and_click(
-                template_name="super_envolve",
-                threshold=0.8,
-            )
-            if is_detected:
-                print("等待超进化")
-                time.sleep(5)
-            else:
+            # 进化窗口能否点击的状态非常接近，更简单的匹配方式反而表现更好
+            if can_super_envolve:
+                print("检测到可以超进化")
                 is_detected = self.detect_and_click(
-                    template_name="envolve",
-                    threshold=0.8,
+                    template_name="super_envolve",
                 )
                 if is_detected:
-                    print("等待进化")
+                    print("等待超进化")
                     time.sleep(5)
+                    can_super_envolve = False # 一回合只进化一次
+                    can_envolve = False 
+            else:
+                if can_envolve:
+                    print("检测到可以进化")
+                    is_detected = self.detect_and_click(
+                        template_name="envolve",
+                    )
+                    if is_detected:
+                        print("等待进化")
+                        time.sleep(5)
+                        can_super_envolve = False # 一回合只进化一次
+                        can_envolve = False 
 
             start_pos = self.abs_position(field_position)
             end_pos = self.abs_position(special_points['opponent'])
-            self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.3)
+            self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.1)
             time.sleep(0.2)
         print("点击结束回合按钮")
         self.click_relative(special_points['decision'])
