@@ -498,12 +498,12 @@ if __name__ == "__main__":
     parser.add_argument("--screen_interval", type=float, default=1.0, help="屏幕截图间隔时间")
     parser.add_argument("--app_name", type=str, default=None, help="应用包名（可选）")
     parser.add_argument("--skip_mode", action='store_true', help="是否启用空过模式，跳过玩家回合的操作")
+    parser.add_argument("--server", type=bool, default=True, help="服务器: True国服, False国际服繁体")
     
     args = parser.parse_args()
-    
     app = App(
         port=args.port,
-        img_dir=args.img_dir,
+        img_dir=args.img_dir + '/svwb' if args.server else args.img_dir + '/svwb_global',
         screen_interval=args.screen_interval,
         app_name=args.app_name,
         skip_mode=args.skip_mode
