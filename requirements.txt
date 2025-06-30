@@ -2,3 +2,4 @@ adbutils>=1.3.6
 uiautomator2>=2.16.23
 opencv-python>=4.5.5.64
 numpy>=1.21.0
+# easyocr # UNCOMMENT WHEN EASYOCR WORKS
