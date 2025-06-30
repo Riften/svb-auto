@@ -26,26 +26,6 @@ pip install -e .
 pip install -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple -r requirements.txt
 ```
 
-<!-- 
-
-UNCOMMENT WHEN EASYOCR WORKS
-
-如果你只需要简单的空过、召唤随从并进化、尝试攻击对方主站者的功能，你可以忽略以下文件的下载。
-
-<details>
-<summary>额外 EasyOCR 模型文件下载</summary>
-
-包括过墙在内的复杂逻辑通过 [EasyOCR](https://github.com/JaidedAI/EasyOCR) 实现，如果你需要这部分功能，你需要下载以下文件，**并将其解压后**保存在`本项目目录/easyocr_model`文件夹下
-
-- [craft_mlt_25k.pth](https://github.com/JaidedAI/EasyOCR/releases/download/pre-v1.1.6/craft_mlt_25k.zip)，md5:`2f8227d2def4037cdb3b34389dcf9ec1`
-- [zh_sim_g2.pth](https://github.com/JaidedAI/EasyOCR/releases/download/v1.3/zh_sim_g2.zip)，md5:`b601ce7143293387d3ec4f41a66edc07`
-
-如果你无法正常下载上述文件，可以下载 CSDN 用户 [舌尖上的蛋炒饭](https://blog.csdn.net/qq13933506749/article/details/122481211) 上传到百度网盘的版本。[网盘链接](https://pan.baidu.com/s/1xyPsKORak447jS82Pt-JHg)，提取码 `onvl`。
-
-</details>
-
--->
-
 ## 使用
 
 启动模拟器
