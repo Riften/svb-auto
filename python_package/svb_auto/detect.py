@@ -1,3 +1,4 @@
+import re
 from PIL import Image
 import cv2
 from hamcrest import is_
@@ -5,7 +6,8 @@ import numpy as np
 import os
 from typing import List, Union
 from numpy.typing import NDArray
-from .utils import crop_rectangle_relative
+from regex import template
+from .utils import crop_rectangle_relative, crop_rectangle
 
 def detect_template_in_area(
         area_image: Union[NDArray, Image.Image], 
@@ -219,12 +221,28 @@ bg_colors = {
 
 # 随从的位置的检测基于 "attack_opponent" 和 "attack_player" 的模板匹配
 follower_margin = (0/1920, 155/1080, 220/1920, 100/1080)
+follower_offset = (0, -155/1080)  # 随从位置相对于 "attack_opponent" 和 "attack_player" 检测位置的偏移量
+
+# 随从守护状态的颜色范围,
+# 直接在 RGB 空间里面的长方体定义颜色范围也许不是个很科学的主意，
+# 但目前看来效果还不错
+WARD_RED_RANGE = (159, 236)
+WARD_GREEN_RANGE = (213, 255)
+WARD_BLUE_RANGE = (69, 161)
+WARD_COLOR_RATIO = 0.4 # 如果在护盾检测范围内，位于颜色范围内的像素占比超过该值，则认为是守护状态
+
 class FollowerDetected:
     center_x: int
     center_y: int
     attack: int
     defense: int
     is_ward: bool = False
+    def __init__(self, center_x: int, center_y: int, attack: int, defense: int, is_ward: bool = False):
+        self.center_x = center_x
+        self.center_y = center_y
+        self.attack = attack
+        self.defense = defense
+        self.is_ward = is_ward
 
 class Detector:
     def __init__(self, img_dir: str = "imgs_chs_1920_1080"):
@@ -302,16 +320,18 @@ class Detector:
         )
         return is_detected, value, position
     
-    def detect_opponent_followers(
+    
+    def detect_followers(
             self,
-            screen_shot: Image.Image
+            screen_shot: Image.Image,
+            field_name: str = 'field_opponent',
         ) -> List[FollowerDetected]:
         """
         检测对手场上所有随从的信息
         """
         img_width, img_height = screen_shot.size
-        area = rects['field_opponent']
-
+        area = rects[field_name]
+        template_width, template_height = self.templates_size['ward_masked']
         area_image = crop_rectangle_relative(
             screen_shot, 
             area
@@ -326,44 +346,46 @@ class Detector:
             method=cv2.TM_CCOEFF_NORMED,
             mask=mask
         )
-        detect_rectangles = [
-            (result[1][0] + (area[0] - follower_margin[0]) * img_width, 
-            result[1][1] + (area[1] - follower_margin[1]) * img_height,
-            result[1][0] + (area[0] + follower_margin[2]) * img_width,
-            result[1][1] + (area[1] + follower_margin[3]) * img_height) 
+        # 保证返回的尺寸和 ward_masked 的尺寸相同
+        # @TODO 应当设定标准的随从尺寸
+        detect_corners = [
+            (result[1][0] + int((follower_offset[0]+area[0]) * img_width),
+            result[1][1] + int((follower_offset[1]+area[1]) * img_height))
             for result in detect_result
         ]
-        return detect_rectangles
+        detect_rectangles = [
+            (corner[0], corner[1],
+             corner[0] + template_width, corner[1] + template_height)
+            for corner in detect_corners
+        ]
+
+        followers = [
+            FollowerDetected(
+                center_x=(rect[0] + rect[2]) // 2,
+                center_y=(rect[1] + rect[3]) // 2,
+                attack=0,  # 攻击力待后续检测
+                defense=0,  # 防御力待后续检测
+                is_ward=self._is_follower_ward(
+                    crop_rectangle(screen_shot, rect))
+                )
+            for rect in detect_rectangles
+        ]
+        return followers, detect_rectangles
     
-    def detect_player_followers(
-            self,
-            screen_shot: Image.Image
-        ) -> List[FollowerDetected]:
-        """
-        检测玩家场上所有随从的信息
-        """
-        img_width, img_height = screen_shot.size
-        area = rects['field_player']
-
-        area_image = crop_rectangle_relative(
-            screen_shot, 
-            area
-        )
-
-        attack_template = self.all_templates['attack_player']
-        mask = self.all_masks['attack_player']
-        detect_result = detect_template_in_area_multi(
-            area_image=area_image,
-            template_image=attack_template,
-            threshold=0.8,
-            method=cv2.TM_CCOEFF_NORMED,
-            mask=mask
-        )
-        detect_rectangles = [
-            (result[1][0] + (area[0] - follower_margin[0]) * img_width, 
-            result[1][1] + (area[1] - follower_margin[1]) * img_height,
-            result[1][0] + (area[0] + follower_margin[2]) * img_width,
-            result[1][1] + (area[1] + follower_margin[3]) * img_height) 
-            for result in detect_result
-        ]
-        return detect_rectangles
+    def _is_follower_ward(
+      self,
+      follower_img: Union[NDArray, Image.Image],
+    ):
+        # follower_img 的尺寸必须与 ward_masked 的尺寸相同
+        # 这在 1920x1080 分辨率下目前可以保证，但是其他分辨率存疑
+        if isinstance(follower_img, Image.Image):
+            follower_img = np.array(follower_img)
+        ward_mask = self.all_masks['ward_masked'].astype(bool)
+        color_mask = np.ones(follower_img.shape[:2], dtype=bool)
+        color_mask &= (follower_img[:, :, 0] >= WARD_RED_RANGE[0]) & (follower_img[:, :, 0] <= WARD_RED_RANGE[1])
+        color_mask &= (follower_img[:, :, 1] >= WARD_GREEN_RANGE[0]) & (follower_img[:, :, 1] <= WARD_GREEN_RANGE[1])
+        color_mask &= (follower_img[:, :, 2] >= WARD_BLUE_RANGE[0]) & (follower_img[:, :, 2] <= WARD_BLUE_RANGE[1])
+        # 计算颜色范围内的像素占比
+        color_mask = color_mask & ward_mask
+        color_ratio = color_mask.sum() / ward_mask.sum()
+        return color_ratio > WARD_COLOR_RATIO
