@@ -207,14 +207,24 @@ rects = {
     "field_player": (250/1920, 470/1080, 1540/1920, 735/1080),  # 玩家场上随从区域
     "attack_opponent": (250/1920, 208/1080, 1540/1920, 470/1080),  # 对手随从攻击力区域
     "attack_player": (250/1920, 470/1080, 1540/1920, 735/1080),  # 玩家随从攻击力区域
+    "ward_masked": None, # 用于检测随从是否处于守护状态，该 template 并非用于模板匹配，而是用于颜色特征匹配
 }
 
 # 背景颜色用于获得图片的遮罩 mask，从而能够使用带 mask 的模板匹配
 bg_colors = {
     "attack_opponent": np.array([0, 255, 0], dtype=np.uint8),  # 随从攻击力背景值
     "attack_player": np.array([0, 255, 0], dtype=np.uint8),  # 随从攻击力背景值
+    "ward_masked": np.array([0, 0, 0], dtype=np.uint8),  # 随从守护状态背景值
 }
 
+# 随从的位置的检测基于 "attack_opponent" 和 "attack_player" 的模板匹配
+follower_margin = (0/1920, 155/1080, 220/1920, 100/1080)
+class FollowerDetected:
+    center_x: int
+    center_y: int
+    attack: int
+    defense: int
+    is_ward: bool = False
 
 class Detector:
     def __init__(self, img_dir: str = "imgs_chs_1920_1080"):
@@ -239,8 +249,19 @@ class Detector:
         screen_shot: Image.Image,
         template_name: str,
         threshold: float = 0.8,
-        method=cv2.TM_CCOEFF_NORMED
+        method=cv2.TM_CCOEFF_NORMED,
     ) -> tuple[bool, float, tuple[int, int]]:
+        """
+        在屏幕截图中检测指定模板图像
+        Args:
+            screen_shot: PIL Image - 屏幕截图
+            template_name: str - 模板图像的名称
+            threshold: float - 匹配阈值 (0-1)
+            method: int - OpenCV模板匹配方法 (默认使用 cv2.TM_CCOEFF_NORMED)
+        Returns:
+            tuple: (is_detected, max_value, position)
+        
+        """
 
         img_width, img_height = screen_shot.size
         area = rects.get(template_name)
@@ -274,8 +295,75 @@ class Detector:
             method=method,
             mask=self.all_masks.get(template_name, None)
         )
+        
         position = (
             rectangle[0] + position[0] + template_size[0] // 2,
             rectangle[1] + position[1] + template_size[1] // 2
         )
         return is_detected, value, position
+    
+    def detect_opponent_followers(
+            self,
+            screen_shot: Image.Image
+        ) -> List[FollowerDetected]:
+        """
+        检测对手场上所有随从的信息
+        """
+        img_width, img_height = screen_shot.size
+        area = rects['field_opponent']
+
+        area_image = crop_rectangle_relative(
+            screen_shot, 
+            area
+        )
+
+        attack_template = self.all_templates['attack_opponent']
+        mask = self.all_masks['attack_opponent']
+        detect_result = detect_template_in_area_multi(
+            area_image=area_image,
+            template_image=attack_template,
+            threshold=0.8,
+            method=cv2.TM_CCOEFF_NORMED,
+            mask=mask
+        )
+        detect_rectangles = [
+            (result[1][0] + (area[0] - follower_margin[0]) * img_width, 
+            result[1][1] + (area[1] - follower_margin[1]) * img_height,
+            result[1][0] + (area[0] + follower_margin[2]) * img_width,
+            result[1][1] + (area[1] + follower_margin[3]) * img_height) 
+            for result in detect_result
+        ]
+        return detect_rectangles
+    
+    def detect_player_followers(
+            self,
+            screen_shot: Image.Image
+        ) -> List[FollowerDetected]:
+        """
+        检测玩家场上所有随从的信息
+        """
+        img_width, img_height = screen_shot.size
+        area = rects['field_player']
+
+        area_image = crop_rectangle_relative(
+            screen_shot, 
+            area
+        )
+
+        attack_template = self.all_templates['attack_player']
+        mask = self.all_masks['attack_player']
+        detect_result = detect_template_in_area_multi(
+            area_image=area_image,
+            template_image=attack_template,
+            threshold=0.8,
+            method=cv2.TM_CCOEFF_NORMED,
+            mask=mask
+        )
+        detect_rectangles = [
+            (result[1][0] + (area[0] - follower_margin[0]) * img_width, 
+            result[1][1] + (area[1] - follower_margin[1]) * img_height,
+            result[1][0] + (area[0] + follower_margin[2]) * img_width,
+            result[1][1] + (area[1] + follower_margin[3]) * img_height) 
+            for result in detect_result
+        ]
+        return detect_rectangles
