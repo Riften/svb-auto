@@ -11,6 +11,7 @@ import cv2
 from enum import Enum, auto
 import time
 import argparse
+from datetime import datetime
 
 MAX_FAILURE_COUNT = 50 # 最大失败次数
 
@@ -140,9 +141,12 @@ class App:
         while True:
             func = self.map_handlers.get(current_state, None)
             if func is None:
-                print(f"未知状态: {current_state}, 无法处理")
+                print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 无法处理")
                 break
-            print(f"当前状态: {current_state}, 执行操作")
+            if current_state == AppState.UNKNOWN:
+                print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 执行操作")
+            else:
+                print(f"\033[32m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 当前状态: {current_state}, 执行操作")
             try:
                 current_state = func()
             except Exception as e:
