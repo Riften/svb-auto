@@ -14,7 +14,6 @@ import argparse
 from datetime import datetime
 
 MAX_FAILURE_COUNT = 50 # 最大失败次数
-
 class AppState(Enum):
     UNKNOWN = auto() # 未知状态
     EXITED = auto() # 应用已退出
@@ -102,6 +101,8 @@ class App:
         self.screen_interval = screen_interval
         self.app_name = app_name
 
+        self.unknown_state_start_time = None
+
         test_screenshot = self.device.screenshot()
         if not isinstance(test_screenshot, Image.Image):
             raise ValueError("无法获取设备屏幕截图，请检查设备连接是否正常。")
@@ -135,7 +136,7 @@ class App:
             int(relative_position[0] * self.image_width),
             int(relative_position[1] * self.image_height)
         )
-    
+
     def run(self):
         current_state = AppState.UNKNOWN
         while True:
@@ -144,8 +145,16 @@ class App:
                 print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 无法处理")
                 break
             if current_state == AppState.UNKNOWN:
-                print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 执行操作")
+                if self.unknown_state_start_time is None:
+                    self.unknown_state_start_time = datetime.now()
+                else:
+                    # 删除控制台的上三行
+                    for _ in range(3):
+                        print("\033[A\033[K", end="")
+                elapsed_time = datetime.now() - self.unknown_state_start_time
+                print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 已持续: {str(elapsed_time).split('.')[0]}")
             else:
+                self.unknown_state_start_time = None
                 print(f"\033[32m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 当前状态: {current_state}, 执行操作")
             try:
                 current_state = func()
