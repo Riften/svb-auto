@@ -5,13 +5,14 @@ from uiautomator2 import Device
 from PIL import Image
 import numpy as np
 from svb_auto.utils import debug_draw_rectangles_relative
-from svb_auto.detect import detect_template_in_area, Detector
+from svb_auto.detect import detect_template_in_area, Detector, FollowerDetected
 from svb_auto.utils import crop_rectangle_relative
 import cv2
 from enum import Enum, auto
 import time
 import argparse
 from datetime import datetime
+from typing import List, Tuple
 
 MAX_FAILURE_COUNT = 50 # 最大失败次数
 
@@ -395,6 +396,22 @@ class App:
         )
 
         return AppState.BATTLE_DEFAULT
+    
+    def envolve_follower(self, 
+            follower: FollowerDetected,
+            is_super_envolve) -> bool:
+        self.device.click(follower.center_x, follower.center_y)
+        time.sleep(0.1)
+        if is_super_envolve:
+            return self.detect_and_click(
+                template_name="super_envolve",
+                threshold=0.8,
+            )
+        else:
+            return self.detect_and_click(
+                template_name="envolve",
+                threshold=0.8,
+            )
 
     def on_player_turn(self):
         """
@@ -418,8 +435,8 @@ class App:
             time.sleep(0.2)
             
             
-        
-        print("尝试进化并攻击对方主站者")
+        # print("尝试进化并攻击对方主站者")
+        print("尝试进化随从")
         screen = self.device.screenshot()
         can_envolve, value, position = self.detector.detect_on_screen(
             screen,
@@ -429,37 +446,95 @@ class App:
             screen,
             template_name="can_super_envolve",
         )
-        for field_position in special_points['card_field']:
-            # 点击手牌大图标位置，使用手牌
-            self.click_relative(field_position)
-            time.sleep(0.1)
-
-            if can_super_envolve:
-                print("检测到可以超进化")
-                is_detected = self.detect_and_click(
-                    template_name="super_envolve",
-                )
+        followers_player, _ = self.detector.detect_followers(
+            screen,
+            field_name='field_player',
+        )
+        if can_super_envolve:
+            print("检测到可以超进化")
+            for follower in followers_player:
+                is_detected = self.envolve_follower(follower, is_super_envolve=True)
                 if is_detected:
                     print("等待超进化")
                     time.sleep(5)
-                    can_super_envolve = False # 一回合只进化一次
+                    can_super_envolve = False
                     can_envolve = False 
+                    break  # 一回合只进化一次
+        elif can_envolve:
+            print("检测到可以进化")
+            for follower in followers_player:
+                is_detected = self.envolve_follower(follower, is_super_envolve=False)
+                if is_detected:
+                    print("等待进化")
+                    time.sleep(5)
+                    break
+        print("检测守护随从")
+        # 攻击守护随从的逻辑：
+        # 1. 检测对手场上所有随从，如果没有守护随从，则直接进入攻击对方主站者逻辑
+        # 2. 如果有守护随从，则使用当前自己场上所有随从攻击守护随从
+        # 3. 检测对方场上守护随从数量是否变化，如果没有变化，则直接结束回合。如果有变化，则回到 1.
+        screen = self.device.screenshot()
+        followers_opponent, _ = self.detector.detect_followers(
+            screen,
+            field_name='field_opponent',
+        )
+        followers_player, _ = self.detector.detect_followers(
+            screen,
+            field_name='field_player',
+        )
+        followers_ward = [f for f in followers_opponent if f.is_ward]
+        num_ward_prev = len(followers_ward)
+        while num_ward_prev > 0:
+            print(f"检测到 {num_ward_prev} 个守护随从")
+            # 使用自己的随从攻击对方的守护随从
+            for follower in followers_player:
+                start_pos = (follower.center_x, follower.center_y)
+                end_pos = (followers_ward[0].center_x, followers_ward[0].center_y)
+                self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.1)
+                time.sleep(0.2)
+            time.sleep(2)  # 等待攻击动画结束
+            # 再次检测对方场上所有随从，判断是否还有守护随从
+            screen = self.device.screenshot()
+            followers_opponent, _ = self.detector.detect_followers(
+                screen,
+                field_name='field_opponent',
+            )
+            followers_player, _ = self.detector.detect_followers(
+                screen,
+                field_name='field_player',
+            )
+            followers_ward = [f for f in followers_opponent if f.is_ward]
+            num_ward_after = len(followers_ward)
+            if num_ward_after < num_ward_prev:
+                print(f"守护随从数量减少，从 {num_ward_prev} 减少到 {num_ward_after}")
+                num_ward_prev = num_ward_after
+                
+                continue  # 继续检测对方场上所有随从
             else:
-                if can_envolve:
-                    print("检测到可以进化")
-                    is_detected = self.detect_and_click(
-                        template_name="envolve",
+                print(f"守护随从数量未变化，结束攻击")
+                if num_ward_after > 0:
+                    print(f"仍然有 {num_ward_after} 个守护随从，结束回合")
+                    self.click_relative(special_points['decision'])
+                    time.sleep(0.2)  # 等待对战状态更新
+                    # 检查是否弹出确认对话框
+                    self.detect_and_click(
+                        "end",
+                        threshold=0.8,
                     )
-                    if is_detected:
-                        print("等待进化")
-                        time.sleep(5)
-                        can_super_envolve = False # 一回合只进化一次
-                        can_envolve = False 
 
-            start_pos = self.abs_position(field_position)
+        # 如果没有守护随从，则直接攻击对方主站者
+        print("攻击对方主站者")
+
+        for follower in followers_player:
+            print(type(follower.center_x), type(follower.center_y))
+            start_pos = (follower.center_x), (follower.center_y)
             end_pos = self.abs_position(special_points['opponent'])
+            print(start_pos, end_pos)
             self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.1)
             time.sleep(0.2)
+
+        # 等待攻击动画结束
+        time.sleep(2)
         print("点击结束回合按钮")
         self.click_relative(special_points['decision'])
         time.sleep(0.2)  # 等待对战状态更新

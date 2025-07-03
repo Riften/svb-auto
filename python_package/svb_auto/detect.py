@@ -4,7 +4,7 @@ import cv2
 from hamcrest import is_
 import numpy as np
 import os
-from typing import List, Union
+from typing import List, Union, Tuple
 from numpy.typing import NDArray
 from regex import template
 from .utils import crop_rectangle_relative, crop_rectangle
@@ -229,7 +229,7 @@ follower_offset = (0, -155/1080)  # 随从位置相对于 "attack_opponent" 和 
 WARD_RED_RANGE = (159, 236)
 WARD_GREEN_RANGE = (213, 255)
 WARD_BLUE_RANGE = (69, 161)
-WARD_COLOR_RATIO = 0.4 # 如果在护盾检测范围内，位于颜色范围内的像素占比超过该值，则认为是守护状态
+WARD_COLOR_RATIO = 0.3 # 如果在护盾检测范围内，位于颜色范围内的像素占比超过该值，则认为是守护状态
 
 class FollowerDetected:
     center_x: int
@@ -237,7 +237,17 @@ class FollowerDetected:
     attack: int
     defense: int
     is_ward: bool = False
-    def __init__(self, center_x: int, center_y: int, attack: int, defense: int, is_ward: bool = False):
+    # 当前默认所有随从都可以进行攻击，攻击之后都变成 False
+    # 理想情况下：
+    # - 攻击能力应当通过识别获得，且部分随从有连击能力
+    can_attack_follower: bool = True  # 是否可以攻击随从
+    can_attack_player: bool = True  # 是否可以攻击玩家
+    def __init__(self, 
+                 center_x: int, 
+                 center_y: int, 
+                 attack: int, 
+                 defense: int, 
+                 is_ward: bool = False):
         self.center_x = center_x
         self.center_y = center_y
         self.attack = attack
@@ -325,7 +335,7 @@ class Detector:
             self,
             screen_shot: Image.Image,
             field_name: str = 'field_opponent',
-        ) -> List[FollowerDetected]:
+        ) -> Tuple[List[FollowerDetected], List[Tuple[int, int, int, int]]]:
         """
         检测对手场上所有随从的信息
         """
@@ -361,8 +371,8 @@ class Detector:
 
         followers = [
             FollowerDetected(
-                center_x=(rect[0] + rect[2]) // 2,
-                center_y=(rect[1] + rect[3]) // 2,
+                center_x=int((rect[0] + rect[2]) // 2), # fix Object of type int64 is not JSON serializable
+                center_y=int((rect[1] + rect[3]) // 2),
                 attack=0,  # 攻击力待后续检测
                 defense=0,  # 防御力待后续检测
                 is_ward=self._is_follower_ward(
