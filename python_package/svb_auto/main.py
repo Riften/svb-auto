@@ -12,7 +12,8 @@ from enum import Enum, auto
 import time
 import argparse
 from datetime import datetime
-from typing import List, Tuple
+from typing import List, Dict, Tuple
+from collections import OrderedDict
 
 MAX_FAILURE_COUNT = 50 # 最大失败次数
 
@@ -37,9 +38,8 @@ class MatchOperator(Enum):
     AND = auto() # 与操作
     OR = auto()  # 或操作
 
-map_state_template = {
-    AppState.EXITED: (["app_icon"], MatchOperator.OR),
-    AppState.STARTING: (["starting"], MatchOperator.OR),
+# 用 OrderedDict 来定义优先级
+map_state_template = OrderedDict({
     AppState.MAIN: (["money", 'crystal'], MatchOperator.AND),
     AppState.BATTLE_SELECT: (["battle_start"], MatchOperator.OR),
     AppState.BATTLE_SWAP_CARD: (["decision"], MatchOperator.OR),
@@ -47,7 +47,9 @@ map_state_template = {
     AppState.TREASURE_RESULT: (["treasure_result"], MatchOperator.OR),
     AppState.NETWORK_ISSUE: (['retry'], MatchOperator.OR),
     AppState.RETURN_TO_BATTLE: (['return_to_battle'], MatchOperator.OR),  # 返回对战窗口标题，闪退再打开会出现该窗口
-}
+    AppState.EXITED: (["app_icon"], MatchOperator.OR),
+    AppState.STARTING: (["starting"], MatchOperator.OR),
+})
 
 map_battle_state_template = {
     AppState.BATTLE_SWAP_CARD: (["decision"], MatchOperator.OR),
@@ -118,6 +120,7 @@ class App:
             AppState.BATTLE_PLAYER_TURN: self.on_player_turn,
             AppState.TREASURE_RESULT: self.on_treasure_result,
             AppState.NETWORK_ISSUE: self.on_retry,
+            AppState.RETURN_TO_BATTLE: self.on_return_to_battle,
         }
         if skip_mode:
             # 如果是跳过模式，则只处理对战状态
@@ -469,6 +472,9 @@ class App:
                     time.sleep(5)
                     break
         print("检测守护随从")
+        # 检测之前点击一下对方主站者，这是为了避免之前点击了随从影响识别效果
+        self.click_relative(special_points['opponent'])
+        time.sleep(0.1)
         # 攻击守护随从的逻辑：
         # 1. 检测对手场上所有随从，如果没有守护随从，则直接进入攻击对方主站者逻辑
         # 2. 如果有守护随从，则使用当前自己场上所有随从攻击守护随从

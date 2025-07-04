@@ -7,7 +7,7 @@ import os
 from typing import List, Union, Tuple
 from numpy.typing import NDArray
 from regex import template
-from .utils import crop_rectangle_relative, crop_rectangle
+from .utils import crop_rectangle_relative, crop_rectangle, debug_draw_rectangles
 
 def detect_template_in_area(
         area_image: Union[NDArray, Image.Image], 
@@ -227,9 +227,11 @@ follower_offset = (0, -155/1080)  # 随从位置相对于 "attack_opponent" 和 
 # 直接在 RGB 空间里面的长方体定义颜色范围也许不是个很科学的主意，
 # 但目前看来效果还不错
 WARD_RED_RANGE = (159, 236)
-WARD_GREEN_RANGE = (213, 255)
-WARD_BLUE_RANGE = (69, 161)
-WARD_COLOR_RATIO = 0.3 # 如果在护盾检测范围内，位于颜色范围内的像素占比超过该值，则认为是守护状态
+# WARD_GREEN_RANGE = (213, 255)
+# WARD_BLUE_RANGE = (69, 161)
+WARD_GREEN_RANGE = (180, 255)
+WARD_BLUE_RANGE = (50, 175)
+WARD_COLOR_RATIO = 0.25 # 如果在护盾检测范围内，位于颜色范围内的像素占比超过该值，则认为是守护状态
 
 class FollowerDetected:
     center_x: int
@@ -399,3 +401,30 @@ class Detector:
         color_mask = color_mask & ward_mask
         color_ratio = color_mask.sum() / ward_mask.sum()
         return color_ratio > WARD_COLOR_RATIO
+    
+    def debug_draw_all_ward(self, screen: Image.Image):
+        """
+        在屏幕截图上绘制所有随从的守护状态
+        """
+        screen_copy = screen.copy()
+        followers, rectangles = self.detect_followers(screen_copy, field_name='field_player')
+        follower_opponent, rectangles_opponent = self.detect_followers(screen_copy, field_name='field_opponent')
+        for i in range(len(followers)):
+            follower = followers[i]
+            rect = rectangles[i]
+            if follower.is_ward:
+                debug_draw_rectangles(
+                    screen_copy, [rect], color=(0, 255, 0), width=5)
+            else:
+                debug_draw_rectangles(
+                    screen_copy, [rect], color=(255, 0, 0),width=5)
+        for i in range(len(follower_opponent)):
+            follower = follower_opponent[i]
+            rect = rectangles_opponent[i]
+            if follower.is_ward:
+                debug_draw_rectangles(
+                    screen_copy, [rect], color=(0, 255, 0), width=5)
+            else:
+                debug_draw_rectangles(
+                    screen_copy, [rect], color=(255, 0, 0), width=5)
+        return screen_copy
