@@ -28,7 +28,9 @@ pip install -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple -r requireme
 
 ## 使用
 
-启动模拟器
+启动模拟器。
+
+对于 MUMU 模拟器，需要关闭 `设置 -> 其他 -> 应用运行 -> 后台挂机时保活运行`。参考 issue [#1](https://github.com/Riften/svb-auto/issues/1#issuecomment-3027869140) [#1](https://github.com/Riften/svb-auto/issues/1#issuecomment-3028236417)
 
 ```bash
 cd 项目根目录
