@@ -429,8 +429,10 @@ class App:
             time.sleep(0.2)
             # 从 card_position 拖拽到屏幕中心
             start_pos = self.abs_position(card_position)
-            end_pos = (self.image_width // 2, self.image_height // 2)
-            self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.1)
+            # end_pos = (self.image_width // 2, self.image_height // 2)
+            # 从拖到中心改为向上拖拽
+            end_pos = (start_pos[0], self.image_height // 2)
+            self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.2)
 
             # 部分法术卡牌可能使用后需要确认，或者需要选取对象，这里统一在使用卡牌后点击一下对方主站者，可以有效避免卡死
             time.sleep(0.1)
@@ -496,7 +498,7 @@ class App:
             for follower in followers_player:
                 start_pos = (follower.center_x, follower.center_y)
                 end_pos = (followers_ward[0].center_x, followers_ward[0].center_y)
-                self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.1)
+                self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.2)
                 time.sleep(0.2)
             time.sleep(2)  # 等待攻击动画结束
             # 再次检测对方场上所有随从，判断是否还有守护随从
@@ -536,7 +538,7 @@ class App:
             start_pos = (follower.center_x), (follower.center_y)
             end_pos = self.abs_position(special_points['opponent'])
             print(start_pos, end_pos)
-            self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.1)
+            self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.2)
             time.sleep(0.2)
 
         # 等待攻击动画结束

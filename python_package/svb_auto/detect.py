@@ -1,12 +1,9 @@
-import re
 from PIL import Image
 import cv2
-from hamcrest import is_
 import numpy as np
 import os
 from typing import List, Union, Tuple
 from numpy.typing import NDArray
-from regex import template
 from .utils import crop_rectangle_relative, crop_rectangle, debug_draw_rectangles
 
 def detect_template_in_area(

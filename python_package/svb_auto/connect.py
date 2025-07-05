@@ -1,6 +1,5 @@
 from adbutils import adb
 import uiautomator2 as u2
-from adbutils import AdbClient
 
 def connect_with_adbutils(port=16384):
     """
