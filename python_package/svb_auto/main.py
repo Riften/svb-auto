@@ -529,6 +529,7 @@ class App:
                         "end",
                         threshold=0.8,
                     )
+                    break
 
         # 如果没有守护随从，则直接攻击对方主站者
         print("攻击对方主站者")
