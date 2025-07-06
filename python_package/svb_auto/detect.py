@@ -193,6 +193,7 @@ rects = {
     # 私人对战检测区域，用于检测是否处于对战界面，随机对战按钮颜色变化较大
     "private_battle": (1100/1920, 600/1080, 1340/1920, 800/1080),
     "battle_start": (1490/1920, 529/1080, 1836/1920, 884/1080),  # 对战开始按钮区域
+    "group_stage": (1034 / 1920, 426 / 1080, 1148 / 1920, 540 / 1080),
     "end": (958/1920, 787/1080, 1351/1920, 884/1080),  # 结束回合的确认按钮，在还有牌可以用时会弹出
     "envolve": (22/1920, 168/1080, 660/1920, 563/1080),  # 进化按钮区域
     "super_envolve": (22/1920, 168/1080, 660/1920, 563/1080),  # 超进化按钮区域
@@ -258,6 +259,7 @@ class Detector:
         self.all_templates = {}
         self.templates_size = {}
         self.all_masks = {}
+        self.feature_matcher = FeatureMatcher(rects=rects)
         for fname in os.listdir(img_dir):
             fpath = os.path.join(img_dir, fname)
             if os.path.isfile(fpath) and fname.lower().endswith(('.png', '.jpg', '.jpeg', '.bmp', '.tiff', '.gif')):
@@ -425,3 +427,121 @@ class Detector:
                 debug_draw_rectangles(
                     screen_copy, [rect], color=(255, 0, 0), width=5)
         return screen_copy
+
+
+class FeatureMatcher:
+    def __init__(self, rects=None):
+        """
+        初始化特征匹配器
+        :param rects: 外部提供的ROI区域配置字典 {模板名: (x1,y1,x2,y2)}
+        """
+        self.sift = cv2.SIFT_create()
+        FLANN_INDEX_KDTREE = 1
+        index_params = dict(algorithm=FLANN_INDEX_KDTREE, trees=5)
+        search_params = dict(checks=50)
+        self.flann = cv2.FlannBasedMatcher(index_params, search_params)
+        self.match_ratio = 0.7
+        self.min_matches = 10
+        self.rects = rects or {}  # 外部ROI配置
+        self.template_name = None  # 当前使用的模板名
+
+    def set_template(self, name):
+        """设置当前模板名用于自动获取ROI"""
+        self.template_name = name
+
+    def _get_roi(self, img, roi_spec):
+        """根据ROI规范裁剪图像"""
+        if roi_spec is None:
+            return img
+
+        if isinstance(img, Image.Image):
+            w, h = img.size
+            img = np.array(img)
+        else:
+            h, w = img.shape[:2]
+
+        # 检查是否是相对坐标 (0-1之间的float)
+        is_relative = (
+                len(roi_spec) == 4 and
+                all(isinstance(x, float) for x in roi_spec) and
+                all(0 <= x <= 1 for x in roi_spec))
+
+        # 支持绝对坐标和相对坐标
+        if is_relative:
+            x1, y1, x2, y2 = [int(coord * dim) for coord, dim in zip(roi_spec, [w, h, w, h])]
+        else:
+            x1, y1, x2, y2 = roi_spec
+
+        return img[y1:y2, x1:x2]
+
+    def match_features(self, img1, img2, draw_matches=False):
+        """
+        特征匹配核心方法
+        :param img1: 图像1 (numpy array)
+        :param img2: 图像2 (numpy array)
+        :param draw_matches: 是否返回匹配可视化图像
+        :return: 匹配点数量 或 (匹配点数量, 可视化图像)
+        """
+        gray1 = cv2.cvtColor(img1, cv2.COLOR_BGR2GRAY) if len(img1.shape) == 3 else img1
+        gray2 = cv2.cvtColor(img2, cv2.COLOR_BGR2GRAY) if len(img2.shape) == 3 else img2
+
+        kp1, des1 = self.sift.detectAndCompute(gray1, None)
+        kp2, des2 = self.sift.detectAndCompute(gray2, None)
+
+        if des1 is None or des2 is None or len(des1) < 2 or len(des2) < 2:
+            return (0, None) if draw_matches else 0
+
+        try:
+            matches = self.flann.knnMatch(des1, des2, k=2)
+        except cv2.error:
+            return (0, None) if draw_matches else 0
+
+        good_matches = [m for m, n in matches if m.distance < self.match_ratio * n.distance]
+
+        if draw_matches:
+            vis_img = cv2.drawMatches(
+                img1, kp1, img2, kp2, good_matches, None,
+                flags=cv2.DrawMatchesFlags_NOT_DRAW_SINGLE_POINTS
+            )
+            return len(good_matches), vis_img
+        return len(good_matches)
+
+    def find_best_match(self, query_img, templates_dict, roi=None, show_result=False):
+        """
+        增强版特征匹配
+        :param query_img: 查询图像 (PIL/numpy array)
+        :param templates_dict: {模板名: 模板图像}
+        :param roi: 可覆盖模板预设ROI (x1,y1,x2,y2)
+        :param show_result: 是否返回可视化结果
+        :return: 匹配结果
+        """
+        # 自动获取预设ROI
+        if roi is None and self.template_name in self.rects:
+            roi = self.rects[self.template_name]
+
+        # 处理查询图像
+        query_np = np.array(query_img) if isinstance(query_img, Image.Image) else query_img
+        query_roi = self._get_roi(query_np, roi)
+
+        best_match = None
+        best_count = 0
+        best_vis = None
+
+        for name, template in templates_dict.items():
+            template_np = np.array(template) if isinstance(template, Image.Image) else template
+
+            if show_result:
+                count, vis = self.match_features(template_np, query_roi, draw_matches=True)
+                if count > best_count:
+                    best_count = count
+                    best_match = name
+                    best_vis = vis
+            else:
+                count = self.match_features(template_np, query_roi)
+                if count > best_count:
+                    best_count = count
+                    best_match = name
+
+        if show_result:
+            return best_match, best_count, best_vis
+        return best_match, best_count
