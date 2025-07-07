@@ -40,7 +40,7 @@ python -m svb_auto.main
 python -m svb_auto.main --skip_mode
 
 # 如果希望运行国际服（繁体中文）
-python -m svb_auto.main --server False
+python -m svb_auto.main --global_server
 
 # 查看所有命令行参数
 python -m svb_auto.main --help

@@ -661,8 +661,9 @@ if __name__ == "__main__":
     parser.add_argument("--screen_interval", type=float, default=1.0, help="屏幕截图间隔时间")
     parser.add_argument("--app_name", type=str, default=None, help="应用包名（可选）")
     parser.add_argument("--skip_mode", action='store_true', help="是否启用空过模式，跳过玩家回合的操作")
+    parser.add_argument("--global_server", action='store_true', help="服务器: False国服, True国际服繁体")
     parser.add_argument("--enable-auto-skip", action='store_true', help="启用自动检测分组切换空过模式功能")
-    parser.add_argument("--server", type=bool, default=True, help="服务器: True国服, False国际服繁体")
+
     
     args = parser.parse_args()
 
@@ -677,7 +678,7 @@ if __name__ == "__main__":
     app = App(
         ip=args.ip,
         port=args.port,
-        img_dir=args.img_dir + '/svwb' if args.server else args.img_dir + '/svwb_global',
+        img_dir=args.img_dir + '/svwb_global' if args.global_server else args.img_dir + '/svwb',
         screen_interval=args.screen_interval, 
         app_name=args.app_name,
         skip_mode=args.skip_mode,
