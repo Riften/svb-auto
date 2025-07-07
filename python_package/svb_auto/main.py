@@ -12,7 +12,7 @@ from enum import Enum, auto
 import time
 import argparse
 from datetime import datetime
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union, Optional
 from collections import OrderedDict
 
 MAX_FAILURE_COUNT = 50 # 最大失败次数
@@ -250,7 +250,7 @@ class App:
         print("未检测到任何已知对战状态，返回 BATTLE_DEFAULT")
         return AppState.BATTLE_DEFAULT
 
-    def detect_group_rating(self) -> int|None:
+    def detect_group_rating(self) -> Optional[int]:
         """
         使用特征匹配检测当前分组评级(0-4)
         返回: 分组评级(0-4)，无法检测时返回None
