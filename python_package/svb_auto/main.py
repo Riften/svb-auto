@@ -95,13 +95,15 @@ class App:
     """
     def __init__(
             self, 
+            ip: str = "127.0.0.1",
             port: int = 16384,
             img_dir: str = "imgs_chs_1920_1080",
             screen_interval: float = 1,
             skip_mode: bool = False,
             app_name = None,
             enable_auto_skip: bool = False,):
-        self.device = connect_with_adbutils(port)
+        self.device = connect_with_adbutils(ip, port)
+
         self.detector = Detector(img_dir=img_dir)
         self.screen_interval = screen_interval
         self.skip_mode = skip_mode
@@ -183,7 +185,7 @@ class App:
         """
         print("点击屏幕中央")
         
-        self.device.click(self.image_width // 2, self.image_height // 2)
+        self.device.click(self.image_width // 2, self.image_height * 0.7825)
 
     def click_relative(self, relative_position: tuple[float, float]):
         """
@@ -645,6 +647,7 @@ class App:
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SVBYD 自动对战脚本")
+    parser.add_argument("--ip", type=str, default="127.0.0.1", help="设备连接IP")
     parser.add_argument("--port", type=int, default=16384, help="设备连接端口")
     parser.add_argument("--img_dir", type=str, default="imgs_chs_1920_1080", help="模板图片目录")
     parser.add_argument("--screen_interval", type=float, default=1.0, help="屏幕截图间隔时间")
@@ -654,10 +657,12 @@ if __name__ == "__main__":
     parser.add_argument("--server", type=bool, default=True, help="服务器: True国服, False国际服繁体")
     
     args = parser.parse_args()
+    print(args.server)
     app = App(
+        ip=args.ip,
         port=args.port,
         img_dir=args.img_dir + '/svwb' if args.server else args.img_dir + '/svwb_global',
-        screen_interval=args.screen_interval,
+        screen_interval=args.screen_interval, 
         app_name=args.app_name,
         skip_mode=args.skip_mode,
         enable_auto_skip = args.enable_auto_skip,  # 传递新参数

@@ -1,7 +1,7 @@
 from adbutils import adb
 import uiautomator2 as u2
 
-def connect_with_adbutils(port=16384):
+def connect_with_adbutils(ip="127.0.0.1", port=16384):
     """
     连接到 ADB 设备并返回 u2 设备对象。
     
@@ -10,7 +10,7 @@ def connect_with_adbutils(port=16384):
     Mumu 模拟器端口查看：右上角三条线→问题诊断→往下滑有个网络信息→adb调试端口
     """
     
-    devices = adb.device(f"127.0.0.1:{port}")
+    devices = adb.device(f"{ip}:{port}")
 
     if not devices:
         raise RuntimeError("请检查 USB 调试是否开启")
