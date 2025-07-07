@@ -1,5 +1,4 @@
-from re import A
-from pytest import fail
+from xml.sax import handler
 from svb_auto.connect import connect_with_adbutils
 from uiautomator2 import Device
 from PIL import Image
@@ -14,6 +13,7 @@ import argparse
 from datetime import datetime
 from typing import List, Dict, Tuple, Union, Optional
 from collections import OrderedDict
+import logging
 
 MAX_FAILURE_COUNT = 50 # 最大失败次数
 
@@ -101,7 +101,8 @@ class App:
             screen_interval: float = 1,
             skip_mode: bool = False,
             app_name = None,
-            enable_auto_skip: bool = False,):
+            enable_auto_skip: bool = False,
+            logger: logging.Logger = logging.getLogger("svb_auto")):
         self.device = connect_with_adbutils(ip, port)
 
         self.detector = Detector(img_dir=img_dir)
@@ -141,6 +142,7 @@ class App:
 
         # some status variables
         self.fail_count = 0  # 用于记录失败次数，部分当前没处理的状态可能导致死循环，此时会尝试点击屏幕中央，然后返回 UNKNOWN 状态
+        self.logger = logger
 
     def abs_position(self, relative_position: tuple[float, float]) -> tuple[int, int]:
         """
@@ -158,16 +160,20 @@ class App:
         while True:
             func = self.map_handlers.get(current_state, None)
             if func is None:
-                print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 无法处理")
+                # print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 无法处理")
+                self.logger.error(f"未知状态: {current_state}, 无法处理")
                 break
             if current_state == AppState.UNKNOWN:
-                print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 执行操作")
+                # print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 执行操作")
+                self.logger.warning(f"未知状态: {current_state}, 执行操作")
             else:
-                print(f"\033[32m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 当前状态: {current_state}, 执行操作")
+                # print(f"\033[32m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 当前状态: {current_state}, 执行操作")
+                self.logger.info(f"当前状态: {current_state}, 执行操作")
             try:
                 current_state = func()
             except Exception as e:
-                print(f"执行操作时发生错误: {e}")
+                # print(f"执行操作时发生错误: {e}")
+                self.logger.error(f"执行操作时发生错误: {e}")
                 current_state = AppState.UNKNOWN
             
             time.sleep(self.screen_interval)  # 等待一段时间，避免过于频繁的操作
@@ -200,7 +206,7 @@ class App:
         """
         检测当前应用状态
         """
-        print("检测当前应用状态")
+        self.logger.info("检测当前应用状态")
         screen = self.device.screenshot()
         for state, (templates, operator) in map_state_template.items():
             res = []
@@ -227,7 +233,7 @@ class App:
         """
         检测当前对战状态
         """
-        print("检测当前对战状态")
+        self.logger.info("检测当前对战状态")
         
         screen = self.device.screenshot()
         for state, (templates, operator) in map_battle_state_template.items():
@@ -244,10 +250,12 @@ class App:
             else:
                 is_detected = any(res)
             if is_detected:
-                print(f"检测到对战状态: {state}, 模板: {templates}, 置信度: {value}, 位置: {position}")
+                # print(f"检测到对战状态: {state}, 模板: {templates}, 置信度: {value}, 位置: {position}")
+                self.logger.info(f"检测到对战状态: {state}, 模板: {templates}, 置信度: {value}, 位置: {position}")
                 return state
         
-        print("未检测到任何已知对战状态，返回 BATTLE_DEFAULT")
+        # print("未检测到任何已知对战状态，返回 BATTLE_DEFAULT")
+        self.logger.info("未检测到任何已知对战状态，返回 BATTLE_DEFAULT")
         return AppState.BATTLE_DEFAULT
 
     def detect_group_rating(self) -> Optional[int]:
@@ -468,7 +476,7 @@ class App:
         """
         玩家回合，点击结束回合按钮
         """
-        print("处理玩家回合")
+        self.logger.info("处理玩家回合")
         print("尝试使用手牌")
         # 点击手牌小图标位置，放大手牌列表
         
@@ -657,7 +665,15 @@ if __name__ == "__main__":
     parser.add_argument("--server", type=bool, default=True, help="服务器: True国服, False国际服繁体")
     
     args = parser.parse_args()
-    print(args.server)
+
+    # set command line logger
+    logger =logging.getLogger("svb_auto")
+    logger.setLevel(logging.INFO)
+    handler = logging.StreamHandler()
+    formatter = logging.Formatter('[%(asctime)s %(levelname)s] %(message)s')
+    handler.setFormatter(formatter)
+    logger.addHandler(handler)
+
     app = App(
         ip=args.ip,
         port=args.port,
@@ -666,5 +682,6 @@ if __name__ == "__main__":
         app_name=args.app_name,
         skip_mode=args.skip_mode,
         enable_auto_skip = args.enable_auto_skip,  # 传递新参数
+        logger=logger
     )
     app.run()
