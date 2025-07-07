@@ -12,7 +12,7 @@ from enum import Enum, auto
 import time
 import argparse
 from datetime import datetime
-from typing import List, Dict, Tuple
+from typing import List, Dict, Tuple, Union, Optional
 from collections import OrderedDict
 
 MAX_FAILURE_COUNT = 50 # 最大失败次数
@@ -100,11 +100,23 @@ class App:
             img_dir: str = "imgs_chs_1920_1080",
             screen_interval: float = 1,
             skip_mode: bool = False,
-            app_name = None):
+            app_name = None,
+            enable_auto_skip: bool = False,):
         self.device = connect_with_adbutils(ip, port)
+
         self.detector = Detector(img_dir=img_dir)
         self.screen_interval = screen_interval
+        self.skip_mode = skip_mode
         self.app_name = app_name
+        self.enable_auto_skip = enable_auto_skip  # 保存自动切换设置
+        # 分组图标模板和对应的评级
+        self.group_templates = {
+            "group_0": 0,
+            "group_1": 1,
+            "group_2": 2,
+            "group_3": 3,
+            "group_4": 4
+        }
 
         test_screenshot = self.device.screenshot()
         if not isinstance(test_screenshot, Image.Image):
@@ -237,7 +249,38 @@ class App:
         
         print("未检测到任何已知对战状态，返回 BATTLE_DEFAULT")
         return AppState.BATTLE_DEFAULT
-    
+
+    def detect_group_rating(self) -> Optional[int]:
+        """
+        使用特征匹配检测当前分组评级(0-4)
+        返回: 分组评级(0-4)，无法检测时返回None
+        """
+        screen = self.device.screenshot()
+        print('开始匹配')
+        # 设置当前模板名用于自动获取ROI
+        self.detector.feature_matcher.set_template('group_stage')
+
+        # 准备分组模板
+        group_templates = {
+            name: self.detector.all_templates[name]
+            for name in self.group_templates
+            if name in self.detector.all_templates
+        }
+
+        # 执行特征匹配
+        best_match, match_count = self.detector.feature_matcher.find_best_match(
+            screen,
+            group_templates
+        )
+
+        print(f"分组: {best_match} , 匹配数量: {match_count}")
+
+        # 判断匹配结果
+        if match_count >= self.detector.feature_matcher.min_matches:
+            return self.group_templates[best_match]
+
+        return None
+
     def detect_and_click(self, 
             template_name: str,
             threshold: float = 0.8,
@@ -362,8 +405,12 @@ class App:
         print("处理对战选择界面")
         fail_count = 0
         while True:
+            try:
+                if self.enable_auto_skip:
+                    self.on_group_stage()
+            except Exception as e:
+                print(f'分组检测失败:{e}')
             is_detected = self.detect_and_click('battle_start')
-
             if is_detected:
                 print("检测到对战开始按钮，点击进入对战")
                 # 点击对战开始按钮后，直接返回 UNKNOWN 状态，交由状态机判断是否进入了战斗
@@ -578,7 +625,25 @@ class App:
         # 点击确认按钮
         self.click_relative(special_points['return_to_battle_second'])
         return AppState.UNKNOWN
-    
+
+    def on_group_stage(self):
+        """
+        处理分组阶段，根据分组评级切换空过模式
+        """
+        group = self.detect_group_rating()
+        group_max=2
+        group_mim=1 #暂时先写成固定值 红宝石2到黄宝石1 后续有需求可更改或抽离
+
+        if group is not None:
+            print(f"检测到分组: {group}")
+            if group >= group_max and not self.skip_mode:
+                print(f"分组评级≥{group_max}，启用空过模式")
+                self.skip_mode = True
+                self.map_handlers[AppState.BATTLE_PLAYER_TURN] = self.on_player_turn_skip
+            elif group <= group_mim and self.skip_mode:
+                print(f"分组评级≤{group_mim}，禁用空过模式")
+                self.skip_mode = False
+                self.map_handlers[AppState.BATTLE_PLAYER_TURN] = self.on_player_turn
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="SVBYD 自动对战脚本")
@@ -589,6 +654,8 @@ if __name__ == "__main__":
     parser.add_argument("--app_name", type=str, default=None, help="应用包名（可选）")
     parser.add_argument("--skip_mode", action='store_true', help="是否启用空过模式，跳过玩家回合的操作")
     parser.add_argument("--global_server", action='store_true', help="服务器: False国服, True国际服繁体")
+    parser.add_argument("--enable-auto-skip", action='store_true', help="启用自动检测分组切换空过模式功能")
+
     
     args = parser.parse_args()
     app = App(
@@ -597,6 +664,7 @@ if __name__ == "__main__":
         img_dir=args.img_dir + '/svwb_global' if args.global_server else args.img_dir + '/svwb',
         screen_interval=args.screen_interval, 
         app_name=args.app_name,
-        skip_mode=args.skip_mode
+        skip_mode=args.skip_mode,
+        enable_auto_skip = args.enable_auto_skip,  # 传递新参数
     )
     app.run()
