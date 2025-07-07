@@ -1,28 +1,28 @@
-from textual.widgets import Log
+from textual.widgets import RichLog
 from datetime import datetime
 
 
-class WidgetLogger(Log):
+class WidgetLogger(RichLog):
     """
     Implement python Logger interface for Textual Log widget.
     """
     def __init__(self, **kwargs):
-        super().__init__(**kwargs)
+        super().__init__(markup=True, **kwargs)
         
     def info(self, message):
         """
         Log an info message.
         """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        message = f"[info][{timestamp}] {message}[/]"
+        message = f"[{timestamp}] {message}"
         self.write(message)
-        
+
     def error(self, message):
         """ 
         Log an error message.
         """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        message = f"[error][{timestamp}] {message}[/]"
+        message = f"[red][{timestamp}] {message}[/]"
         self.write(message)
 
     def debug(self, message):
@@ -38,5 +38,5 @@ class WidgetLogger(Log):
         Log a warning message.
         """
         timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        message = f"[warning][{timestamp}] {message}[/]"
+        message = f"[yellow][{timestamp}] {message}[/]"
         self.write(message)

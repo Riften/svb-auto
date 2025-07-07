@@ -160,19 +160,15 @@ class App:
         while True:
             func = self.map_handlers.get(current_state, None)
             if func is None:
-                # print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 无法处理")
                 self.logger.error(f"未知状态: {current_state}, 无法处理")
                 break
             if current_state == AppState.UNKNOWN:
-                # print(f"\033[31m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 未知状态: {current_state}, 执行操作")
                 self.logger.warning(f"未知状态: {current_state}, 执行操作")
             else:
-                # print(f"\033[32m[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]\033[0m 当前状态: {current_state}, 执行操作")
                 self.logger.info(f"当前状态: {current_state}, 执行操作")
             try:
                 current_state = func()
             except Exception as e:
-                # print(f"执行操作时发生错误: {e}")
                 self.logger.error(f"执行操作时发生错误: {e}")
                 current_state = AppState.UNKNOWN
             
@@ -180,7 +176,7 @@ class App:
             if current_state == AppState.UNKNOWN or current_state == AppState.BATTLE_DEFAULT:
                 self.fail_count += 1
                 if self.fail_count >= MAX_FAILURE_COUNT:
-                    print("连续失败次数过多，点击屏幕中央")
+                    self.logger.warning("连续失败次数过多，尝试点击屏幕中央")
                     self.click_center()
                     current_state = AppState.UNKNOWN # 重置状态为 UNKNOWN
             else:
@@ -189,8 +185,6 @@ class App:
         """
         点击屏幕中央
         """
-        print("点击屏幕中央")
-        
         self.device.click(self.image_width // 2, self.image_height * 0.7825)
 
     def click_relative(self, relative_position: tuple[float, float]):
@@ -198,7 +192,6 @@ class App:
         点击相对位置
         :param relative_position: 相对位置，范围 [0, 1]
         """
-        print(f"点击相对位置: {relative_position}")
         position = self.abs_position(relative_position)
         self.device.click(*position)
 
@@ -212,7 +205,6 @@ class App:
             res = []
             
             for template in templates:
-                # print(f"检测状态: {state}, 模板: {template}")
                 detected, value, position = self.detector.detect_on_screen(
                     screen,
                     template_name=template,
@@ -224,9 +216,9 @@ class App:
             else:
                 is_detected = any(res)
             if is_detected:
-                print(f"检测到状态: {state}, 模板: {templates}, 置信度: {value}, 位置: {position}")
+                self.logger.info(f"检测到状态: {state}, 模板: {templates}, 置信度: {value}, 位置: {position}")
                 return state
-        print("未检测到任何已知状态，返回 UNKNOWN")
+        self.logger.info("未检测到任何已知状态，返回 UNKNOWN")
         return AppState.UNKNOWN
     
     def detect_battle_state(self) -> AppState:
@@ -250,11 +242,9 @@ class App:
             else:
                 is_detected = any(res)
             if is_detected:
-                # print(f"检测到对战状态: {state}, 模板: {templates}, 置信度: {value}, 位置: {position}")
                 self.logger.info(f"检测到对战状态: {state}, 模板: {templates}, 置信度: {value}, 位置: {position}")
                 return state
         
-        # print("未检测到任何已知对战状态，返回 BATTLE_DEFAULT")
         self.logger.info("未检测到任何已知对战状态，返回 BATTLE_DEFAULT")
         return AppState.BATTLE_DEFAULT
 
@@ -264,7 +254,7 @@ class App:
         返回: 分组评级(0-4)，无法检测时返回None
         """
         screen = self.device.screenshot()
-        print('开始匹配')
+        self.logger.info("开始匹配")
         # 设置当前模板名用于自动获取ROI
         self.detector.feature_matcher.set_template('group_stage')
 
@@ -281,7 +271,7 @@ class App:
             group_templates
         )
 
-        print(f"分组: {best_match} , 匹配数量: {match_count}")
+        self.logger.info(f"分组: {best_match} , 匹配数量: {match_count}")
 
         # 判断匹配结果
         if match_count >= self.detector.feature_matcher.min_matches:
@@ -302,7 +292,7 @@ class App:
             method=method
         )
         if is_detected:
-            print(f"检测到 {template_name}: {is_detected}, 置信度: {value}, 位置: {position}")
+            self.logger.info(f"检测到 {template_name}: {is_detected}, 置信度: {value}, 位置: {position}")
             if click_position is not None:
                 # 如果指定了点击位置，则点击该位置
                 self.device.click(*self.abs_position(click_position))
@@ -318,15 +308,15 @@ class App:
         screen = self.device.screenshot()
         if isinstance(screen, Image.Image):
             screen.save(filename)
-            print(f"屏幕截图已保存到 {filename}")
+            self.logger.info(f"屏幕截图已保存到 {filename}")
         else:
-            print("无法保存屏幕截图，返回的不是图像对象")
+            self.logger.error("无法保存屏幕截图，返回的不是图像对象")
 
     def on_exited(self):
         """
         应用已退出，重新启动应用
         """
-        print("应用已退出，重新启动应用")
+        self.logger.info("应用已退出，重新启动应用")
         fail_count = 0
         if self.app_name is None:
             while True:
@@ -335,7 +325,7 @@ class App:
                 if not is_detected:
                     fail_count += 1
                     if fail_count >= MAX_FAILURE_COUNT:
-                        print("无法检测到应用图标，返回 UNKNOWN 状态")
+                        self.logger.warning("无法检测到应用图标，返回 UNKNOWN 状态")
                         return AppState.UNKNOWN
                 else:
                     time.sleep(10)  # 等待应用启动
@@ -360,12 +350,12 @@ class App:
                 threshold=0.8
             )
             if is_detected:
-                print(f"检测到启动界面: {is_detected}, 置信度: {value}, 位置: {position}")
-                print("应用在启动界面，点击屏幕中央")
+                self.logger.info(f"检测到启动界面: {is_detected}, 置信度: {value}, 位置: {position}")
+                self.logger.info("应用在启动界面，点击屏幕中央")
                 self.click_center()
                 fail_count += 1
                 if fail_count >= MAX_FAILURE_COUNT:
-                    print("无法处理启动界面，返回 UNKNOWN 状态")
+                    self.logger.warning("无法处理启动界面，返回 UNKNOWN 状态")
                     return AppState.UNKNOWN
                 time.sleep(3)
                 # 启动界面可能排队，因此循环多次调用，直到无法再检测到启动界面的标志
@@ -381,7 +371,7 @@ class App:
         """
         应用在主界面，执行主界面的操作
         """
-        print("处理主界面")
+        self.logger.info("处理主界面")
         fail_count = 0
         while True:
             screen = self.device.screenshot()
@@ -402,7 +392,7 @@ class App:
             )
             fail_count += 1
             if fail_count >= MAX_FAILURE_COUNT:
-                print("无法处理主界面，返回 UNKNOWN 状态")
+                self.logger.warning("无法处理主界面，返回 UNKNOWN 状态")
                 return AppState.UNKNOWN
             time.sleep(1) # 等待对战界面加载
 
@@ -410,23 +400,23 @@ class App:
         """
         处理对战选择界面
         """
-        print("处理对战选择界面")
+        self.logger.info("处理对战选择界面")
         fail_count = 0
         while True:
             try:
                 if self.enable_auto_skip:
                     self.on_group_stage()
             except Exception as e:
-                print(f'分组检测失败:{e}')
+                self.logger.error(f'分组检测失败:{e}')
             is_detected = self.detect_and_click('battle_start')
             if is_detected:
-                print("检测到对战开始按钮，点击进入对战")
+                self.logger.info("检测到对战开始按钮，点击进入对战")
                 # 点击对战开始按钮后，直接返回 UNKNOWN 状态，交由状态机判断是否进入了战斗
                 return AppState.UNKNOWN
             else:
                 fail_count += 1
                 if fail_count >= MAX_FAILURE_COUNT:
-                    print("无法处理对战选择界面，返回 UNKNOWN 状态")
+                    self.logger.warning("无法处理对战选择界面，返回 UNKNOWN 状态")
                     # 如果无法检测到对战开始按钮，则点击屏幕中央，尝试重新进入对战选择界面
                     self.click_center()
                     return AppState.UNKNOWN
@@ -436,7 +426,7 @@ class App:
         """
         换牌阶段，点击决策按钮
         """
-        print("处理换牌阶段")
+        self.logger.info("处理换牌阶段")
         self.click_relative(special_points['decision'])
         return AppState.BATTLE_DEFAULT
     
@@ -444,8 +434,9 @@ class App:
         """
         玩家回合，空过
         """
-        print("处理玩家回合")
-        print("点击结束回合按钮")
+        self.logger.info("处理玩家回合")
+        self.logger.info("点击结束回合按钮")
+
         self.click_relative(special_points['decision'])
         time.sleep(0.2)  # 等待对战状态更新
 
@@ -477,7 +468,7 @@ class App:
         玩家回合，点击结束回合按钮
         """
         self.logger.info("处理玩家回合")
-        print("尝试使用手牌")
+        self.logger.info("尝试使用手牌")
         # 点击手牌小图标位置，放大手牌列表
         
         for card_position in special_points['card_hand_large']:
@@ -496,8 +487,7 @@ class App:
             time.sleep(0.2)
             
             
-        # print("尝试进化并攻击对方主站者")
-        print("尝试进化随从")
+        self.logger.info("尝试进化随从")
         screen = self.device.screenshot()
         can_envolve, value, position = self.detector.detect_on_screen(
             screen,
@@ -512,24 +502,24 @@ class App:
             field_name='field_player',
         )
         if can_super_envolve:
-            print("检测到可以超进化")
+            self.logger.info("检测到可以超进化")
             for follower in followers_player:
                 is_detected = self.envolve_follower(follower, is_super_envolve=True)
                 if is_detected:
-                    print("等待超进化")
+                    self.logger.info("等待超进化")
                     time.sleep(5)
                     can_super_envolve = False
                     can_envolve = False 
                     break  # 一回合只进化一次
         elif can_envolve:
-            print("检测到可以进化")
+            self.logger.info("检测到可以进化")
             for follower in followers_player:
                 is_detected = self.envolve_follower(follower, is_super_envolve=False)
                 if is_detected:
-                    print("等待进化")
+                    self.logger.info("等待进化")
                     time.sleep(5)
                     break
-        print("检测守护随从")
+        self.logger.info("检测守护随从")
         # 检测之前点击一下对方主站者，这是为了避免之前点击了随从影响识别效果
         self.click_relative(special_points['opponent'])
         time.sleep(0.1)
@@ -549,7 +539,7 @@ class App:
         followers_ward = [f for f in followers_opponent if f.is_ward]
         num_ward_prev = len(followers_ward)
         while num_ward_prev > 0:
-            print(f"检测到 {num_ward_prev} 个守护随从")
+            self.logger.info(f"检测到 {num_ward_prev} 个守护随从")
             # 使用自己的随从攻击对方的守护随从
             for follower in followers_player:
                 start_pos = (follower.center_x, follower.center_y)
@@ -570,14 +560,14 @@ class App:
             followers_ward = [f for f in followers_opponent if f.is_ward]
             num_ward_after = len(followers_ward)
             if num_ward_after < num_ward_prev:
-                print(f"守护随从数量减少，从 {num_ward_prev} 减少到 {num_ward_after}")
+                self.logger.info(f"守护随从数量减少，从 {num_ward_prev} 减少到 {num_ward_after}")
                 num_ward_prev = num_ward_after
                 
                 continue  # 继续检测对方场上所有随从
             else:
-                print(f"守护随从数量未变化，结束攻击")
+                self.logger.info(f"守护随从数量未变化，结束攻击")
                 if num_ward_after > 0:
-                    print(f"仍然有 {num_ward_after} 个守护随从，结束回合")
+                    self.logger.info(f"仍然有 {num_ward_after} 个守护随从，结束回合")
                     self.click_relative(special_points['decision'])
                     time.sleep(0.2)  # 等待对战状态更新
                     # 检查是否弹出确认对话框
@@ -588,19 +578,17 @@ class App:
                     break
 
         # 如果没有守护随从，则直接攻击对方主站者
-        print("攻击对方主站者")
+        self.logger.info("攻击对方主站者")
 
         for follower in followers_player:
-            print(type(follower.center_x), type(follower.center_y))
             start_pos = (follower.center_x), (follower.center_y)
             end_pos = self.abs_position(special_points['opponent'])
-            print(start_pos, end_pos)
             self.device.swipe(start_pos[0], start_pos[1], end_pos[0], end_pos[1], duration=0.2)
             time.sleep(0.2)
 
         # 等待攻击动画结束
         time.sleep(2)
-        print("点击结束回合按钮")
+        self.logger.info("点击结束回合按钮")
         self.click_relative(special_points['decision'])
         time.sleep(0.2)  # 等待对战状态更新
         # 检查是否弹出确认对话框
@@ -615,7 +603,7 @@ class App:
         """
         网络不稳定时点击重试
         """
-        print("处理网络不稳定情况，点击重试")
+        self.logger.info("处理网络不稳定情况，点击重试")
         is_detected = self.detect_and_click(
             "retry",
             threshold=0.8,
@@ -626,7 +614,7 @@ class App:
         """
         处理返回对战窗口的情况
         """
-        print("处理返回对战窗口")
+        self.logger.info("处理返回对战窗口")
         # 点击否按钮
         self.click_relative(special_points['return_to_battle_negative'])
         time.sleep(1)
@@ -643,13 +631,13 @@ class App:
         group_mim=1 #暂时先写成固定值 红宝石2到黄宝石1 后续有需求可更改或抽离
 
         if group is not None:
-            print(f"检测到分组: {group}")
+            self.logger.info(f"检测到分组: {group}")
             if group >= group_max and not self.skip_mode:
-                print(f"分组评级≥{group_max}，启用空过模式")
+                self.logger.info(f"分组评级≥{group_max}，启用空过模式")
                 self.skip_mode = True
                 self.map_handlers[AppState.BATTLE_PLAYER_TURN] = self.on_player_turn_skip
             elif group <= group_mim and self.skip_mode:
-                print(f"分组评级≤{group_mim}，禁用空过模式")
+                self.logger.info(f"分组评级≤{group_mim}，禁用空过模式")
                 self.skip_mode = False
                 self.map_handlers[AppState.BATTLE_PLAYER_TURN] = self.on_player_turn
 
@@ -663,8 +651,6 @@ if __name__ == "__main__":
     parser.add_argument("--skip_mode", action='store_true', help="是否启用空过模式，跳过玩家回合的操作")
     parser.add_argument("--global_server", action='store_true', help="服务器: False国服, True国际服繁体")
     parser.add_argument("--enable-auto-skip", action='store_true', help="启用自动检测分组切换空过模式功能")
-
-    
     args = parser.parse_args()
 
     # set command line logger
