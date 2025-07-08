@@ -486,7 +486,7 @@ class App:
             self.click_relative(special_points['opponent'])
             time.sleep(0.2)
             
-            
+        time.sleep(1)  # 等待手牌使用动画结束
         self.logger.info("尝试进化随从")
         screen = self.device.screenshot()
         can_envolve, value, position = self.detector.detect_on_screen(
