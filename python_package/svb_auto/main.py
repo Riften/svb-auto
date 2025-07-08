@@ -41,11 +41,11 @@ class MatchOperator(Enum):
 # 用 OrderedDict 来定义优先级
 map_state_template = OrderedDict({
     AppState.MAIN: (["money", 'crystal'], MatchOperator.AND),
+    AppState.NETWORK_ISSUE: (['retry'], MatchOperator.OR),
     AppState.BATTLE_SELECT: (["battle_start"], MatchOperator.OR),
     AppState.BATTLE_SWAP_CARD: (["decision"], MatchOperator.OR),
     AppState.BATTLE_PLAYER_TURN: (["end_round"], MatchOperator.OR),
     AppState.TREASURE_RESULT: (["treasure_result"], MatchOperator.OR),
-    AppState.NETWORK_ISSUE: (['retry'], MatchOperator.OR),
     AppState.RETURN_TO_BATTLE: (['return_to_battle'], MatchOperator.OR),  # 返回对战窗口标题，闪退再打开会出现该窗口
     AppState.EXITED: (["app_icon"], MatchOperator.OR),
     AppState.STARTING: (["starting"], MatchOperator.OR),
