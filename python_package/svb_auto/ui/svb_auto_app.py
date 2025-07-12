@@ -1,6 +1,6 @@
 from textual.app import App
 from textual.containers import Vertical, Horizontal, Container
-from textual.widgets import Log, Header, Button, Input, Static, Select
+from textual.widgets import Log, Header, Button, Input, Static, Select, Checkbox
 from textual import work
 
 from svb_auto.ui.textual_logger import WidgetLogger
@@ -67,7 +67,8 @@ class ControlPanel(Vertical):
         yield Input(placeholder="port number", id="input_port", value="16384", type="number")
         yield Static("服务器")
         yield Select(options=[("国服（简中）", 0), ("国际服（繁中）", 1)], value=0, id="select_server")
-
+        yield Checkbox("完全空过模式", id="checkbox_skipmode", value=False)
+        yield Checkbox("根据分组自动空过", id="checkbox_autoskip", value=True)
 
 class SVBAutoApp(App):
     """Main application class for SVB Auto."""
@@ -91,6 +92,9 @@ class SVBAutoApp(App):
         super().__init__()
         self.title = "SVB Auto Application"
     
+    def on_mount(self):
+        self.theme = "dracula"
+
     def compose(self):
         """Compose the main layout of the application."""
         # Here you would define your application's layout
@@ -116,13 +120,17 @@ class SVBAutoApp(App):
         # For example, initializing the app with the provided port and server
         port = self.get_input_value('input_port')
         server = self.query_one("#select_server", Select).value
-        self.logger.info(f"Port: {port}, Server: {server}")
+        skip_mode = self.query_one("#checkbox_skipmode", Checkbox).value
+        auto_skip = self.query_one("#checkbox_autoskip", Checkbox).value
         
         auto_app = AUTOApp(
             port=port, 
             img_dir="imgs_chs_1920_1080/svwb" if server == 0 else "imgs_int_1920_1080/svwb_global",
-            logger=self.logger
+            logger=self.logger,
+            skip_mode=skip_mode,
+            enable_auto_skip=auto_skip
         )
+        self.logger.info(f"Running SVB Auto with port {port}, server {server}, skip_mode {skip_mode}, auto_skip {auto_skip}")
         auto_app.run()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:

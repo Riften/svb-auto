@@ -3,7 +3,7 @@ from setuptools import setup, find_packages
 
 setup(
     name="svb-auto-duel",
-    version="1.2.1",
+    version="1.2.2",
     author="",
     author_email="",
     description="影之诗自动战斗工具 - 基于机器视觉的Android模拟器自动化",

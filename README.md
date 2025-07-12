@@ -34,6 +34,8 @@ pyinstaller --noconfirm --onedir --console --add-data "<path to uiautomator2>\ui
 
 `<path to uiautomator2>` 可以通过 `pip show uiautomator2` 得到。
 
+然后讲 `imgs_chs_1920_1080` 文件夹复制到打包路径下。
+
 ## 命令行安装与使用 （面向开发者）
 
 <details>
