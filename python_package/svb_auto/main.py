@@ -1,6 +1,4 @@
-from xml.sax import handler
 from svb_auto.connect import connect_with_adbutils
-from uiautomator2 import Device
 from PIL import Image
 import numpy as np
 from svb_auto.utils import debug_draw_rectangles_relative

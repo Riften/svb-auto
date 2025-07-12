@@ -57,3 +57,5 @@ coverage/
 /*.png
 /easyocr_model
 *:Zone.Identifier
+*.spec
+/output

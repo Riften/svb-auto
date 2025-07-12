@@ -1,11 +1,13 @@
-from ast import In
-from venv import logger
 from textual.app import App
 from textual.containers import Vertical, Horizontal, Container
-from textual.widgets import Log, Header, Button, Input, Static
+from textual.widgets import Log, Header, Button, Input, Static, Select
+from textual import work
 
-from .textual_logger import WidgetLogger
-import threading
+from svb_auto.ui.textual_logger import WidgetLogger
+from svb_auto.main import App as AUTOApp
+
+# for release
+import uiautomator2.assets
 
 class AlertMsg(Static):
     DEFAULT_CSS = """
@@ -61,9 +63,10 @@ class ControlPanel(Vertical):
     def compose(self):
         yield Button("[blink][b]启动[/][/][green]▶[/]", id="button_start")
     
-        yield Static("端口:")
+        yield Static("端口（MUMU 16384，雷模拟器 5555）")
         yield Input(placeholder="port number", id="input_port", value="16384", type="number")
-        yield Static("server")
+        yield Static("服务器")
+        yield Select(options=[("国服（简中）", 0), ("国际服（繁中）", 1)], value=0, id="select_server")
 
 
 class SVBAutoApp(App):
@@ -104,17 +107,32 @@ class SVBAutoApp(App):
         if not widget.validate(value):
             self.logger.error(f"Invalid input format for {id}")
         return value
+    
+    @work(exclusive=True, thread=True)
+    def run_app(self):
+        """Run the main application logic in a separate thread."""
+        self.logger.info("Starting SVB Auto Application...")
+        # Here you can add the logic to start your application
+        # For example, initializing the app with the provided port and server
+        port = self.get_input_value('input_port')
+        server = self.query_one("#select_server", Select).value
+        self.logger.info(f"Port: {port}, Server: {server}")
+        
+        auto_app = AUTOApp(
+            port=port, 
+            img_dir="imgs_chs_1920_1080/svwb" if server == 0 else "imgs_int_1920_1080/svwb_global",
+            logger=self.logger
+        )
+        auto_app.run()
 
     def on_button_pressed(self, event: Button.Pressed) -> None:
         button_id = event.button.id
-        start_args = {
-            "port": -1,
-        }
+        
         if button_id == "button_start":
-            port = self.get_input_value('input_port')
-            start_args['port'] = int(port)
-            self.logger.info(start_args)
-            self.logger.info("SZB，启动！")
+            self.logger.info("Start button pressed, running app...")
+            event.button.disabled = True
+            event.button.label = "[blink][b]正在运行...[/][/]"
+            self.run_app()
 
     @property
     def logger(self) -> WidgetLogger:

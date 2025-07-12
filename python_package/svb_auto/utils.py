@@ -1,6 +1,5 @@
 from PIL import Image
 from PIL import ImageDraw
-import cv2
 import numpy as np
 
 def debug_draw_rectangles_relative(

@@ -12,7 +12,35 @@
 
 目前不支持自动领取每日免费卡包。
 
-## 安装
+## 简易安装与使用
+
+从 RELEASE 界面获取可执行程序，运行 `svb_auto_app.exe`
+
+对于 MUMU 模拟器，需要关闭 `设置 -> 其他 -> 应用运行 -> 后台挂机时保活运行`。参考 issue [#1](https://github.com/Riften/svb-auto/issues/1#issuecomment-3027869140) [#1](https://github.com/Riften/svb-auto/issues/1#issuecomment-3028236417)
+
+界面上的端口设置，MUMU 模拟器默认端口为 16384，雷电模拟器为 5555。
+
+点击启动即可运行，正常运行界面如下所示：
+
+![ui](./imgs_chs_1920_1080/ui.png)
+
+## 打包与发布（面向开发者）
+
+uiautomator with pyinstaller: [issue](https://github.com/openatx/uiautomator2/issues/1060)
+
+```bash
+pyinstaller --noconfirm --onedir --console --add-data "<path to uiautomator2>\uiautomator2\assets;uiautomator2/assets/"  "python_package\svb_auto\ui\svb_auto_app.py"
+```
+
+`<path to uiautomator2>` 可以通过 `pip show uiautomator2` 得到。
+
+## 命令行安装与使用 （面向开发者）
+
+<details>
+
+<summary>展开</summary>
+
+### 安装
 
 ```bash
 cd 项目根目录
@@ -26,7 +54,7 @@ pip install -e .
 pip install -i https://mirrors.tuna.tsinghua.edu.cn/pypi/web/simple -r requirements.txt
 ```
 
-## 使用
+### 使用
 
 启动模拟器。
 
@@ -50,6 +78,8 @@ python -m svb_auto.main --help
 
 如果一切顺利，将会检测模拟器画面上的 app 图标，启动应用。如果应用已经启动，则会直接根据应用所处状态开始对战。
 
+</details>
+
 ## KNOWN ISSUE
 
 1. 法术牌无法选择效果，目前避免卡死的方案是每使用一张牌都点一下对方主站者
@@ -67,3 +97,4 @@ python -m svb_auto.main --help
 
 - 2025.06.29, V1.0.0 初始版本
 - 2025.07.04, V1.1.0 简单的过墙，但误报率过高
+- 2025.07.12, V1.2.1 简单的 UI 界面和 exe 打包。
