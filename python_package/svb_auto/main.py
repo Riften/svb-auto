@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Union, Optional
 from collections import OrderedDict
 import logging
+import requests
 
 MAX_FAILURE_COUNT = 50 # 最大失败次数
 
@@ -100,7 +101,8 @@ class App:
             skip_mode: bool = False,
             app_name = None,
             enable_auto_skip: bool = False,
-            logger: logging.Logger = logging.getLogger("svb_auto")):
+            logger: logging.Logger = logging.getLogger("svb_auto"),
+            qmsg_key: str = None):
         self.device = connect_with_adbutils(ip, port)
 
         self.detector = Detector(img_dir=img_dir)
@@ -141,6 +143,8 @@ class App:
         # some status variables
         self.fail_count = 0  # 用于记录失败次数，部分当前没处理的状态可能导致死循环，此时会尝试点击屏幕中央，然后返回 UNKNOWN 状态
         self.logger = logger
+        self.qmsg_key = qmsg_key
+        self.qmsg_sent = False
 
     def abs_position(self, relative_position: tuple[float, float]) -> tuple[int, int]:
         """
@@ -175,10 +179,29 @@ class App:
                 self.fail_count += 1
                 if self.fail_count >= MAX_FAILURE_COUNT:
                     self.logger.warning("连续失败次数过多，尝试点击屏幕中央")
+
+                    # 发送通知到Qmsg
+                    if self.fail_count >= MAX_FAILURE_COUNT * 1.5:
+                        if self.qmsg_key and not self.qmsg_sent:
+                            qmsg_url = f"https://qmsg.zendee.cn/jsend/{self.qmsg_key}"
+                            payload = {"msg": "SVB-AUTO：连续失败次数过多，尝试点击屏幕。"}
+                            try:
+                                response = requests.post(qmsg_url, json=payload)
+                                response.raise_for_status()
+                                self.logger.info(f"通知发送成功，状态码: {response.status_code}")
+                                self.qmsg_sent = True  # 标记为已发送
+                            except requests.exceptions.RequestException as e:
+                                self.logger.error(f"发送通知失败: {str(e)}")
+                        elif self.qmsg_sent:
+                            self.logger.info("Qmsg通知已发送，等待操作成功后重置")
+                        else:
+                            self.logger.info("未配置Qmsg密钥，跳过通知发送")
+
                     self.click_center()
                     current_state = AppState.UNKNOWN # 重置状态为 UNKNOWN
             else:
                 self.fail_count = 0
+                self.qmsg_sent = False  # 操作成功，重置Qmsg发送状态
     def click_center(self):
         """
         点击屏幕中央
@@ -649,6 +672,7 @@ if __name__ == "__main__":
     parser.add_argument("--skip_mode", action='store_true', help="是否启用空过模式，跳过玩家回合的操作")
     parser.add_argument("--global_server", action='store_true', help="服务器: False国服, True国际服繁体")
     parser.add_argument("--enable-auto-skip", action='store_true', help="启用自动检测分组切换空过模式功能")
+    parser.add_argument("--qmsg-key", type=str, default=None, help="Qmsg推送服务的密钥")
     args = parser.parse_args()
 
     # set command line logger
@@ -667,6 +691,7 @@ if __name__ == "__main__":
         app_name=args.app_name,
         skip_mode=args.skip_mode,
         enable_auto_skip = args.enable_auto_skip,  # 传递新参数
-        logger=logger
+        logger=logger,
+        qmsg_key=args.qmsg_key
     )
     app.run()
