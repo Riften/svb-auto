@@ -103,13 +103,7 @@ class App:
             enable_auto_skip: bool = False,
             logger: logging.Logger = logging.getLogger("svb_auto"),
             qmsg_key: str = None):
-        try:
-            self.device = connect_with_adbutils(ip, port)
-        except RuntimeError as e:
-            self.logger.error(f"ADB连接失败: {e}")
-            self.send_qmsg(f"SVB-AUTO：ADB连接错误 - {str(e)}")
-            raise  # 保留原有异常抛出行为
-
+        self.device = connect_with_adbutils(ip, port)
         self.detector = Detector(img_dir=img_dir)
         self.screen_interval = screen_interval
         self.skip_mode = skip_mode
