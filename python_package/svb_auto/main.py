@@ -103,7 +103,14 @@ class App:
             enable_auto_skip: bool = False,
             logger: logging.Logger = logging.getLogger("svb_auto"),
             qmsg_key: str = None):
-        self.device = connect_with_adbutils(ip, port)
+        try:
+            self.device = connect_with_adbutils(ip, port)
+        except RuntimeError as e:
+            self.logger.error(f"ADB连接失败: {e}")
+            if self.qmsg_key and not self.qmsg_sent:
+                if self.send_qmsg(f"SVB-AUTO：ADB连接错误 - {str(e)}"):
+                    self.qmsg_sent = True
+            raise  # 保留原有异常抛出行为
 
         self.detector = Detector(img_dir=img_dir)
         self.screen_interval = screen_interval
@@ -157,6 +164,30 @@ class App:
             int(relative_position[1] * self.image_height)
         )
     
+    def send_qmsg(self, message: str) -> bool:
+        """发送Qmsg通知
+
+        Args:
+            message: 要发送的通知内容
+
+        Returns:
+            是否发送成功
+        """
+        if not self.qmsg_key:
+            self.logger.info("未配置Qmsg密钥，跳过通知发送")
+            return False
+
+        qmsg_url = f"https://qmsg.zendee.cn/jsend/{self.qmsg_key}"
+        payload = {"msg": message}
+        try:
+            response = requests.post(qmsg_url, json=payload)
+            response.raise_for_status()
+            self.logger.info(f"Qmsg通知发送成功，状态码: {response.status_code}")
+            return True
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"发送Qmsg通知失败: {str(e)}")
+            return False
+
     def run(self):
         current_state = AppState.UNKNOWN
         while True:
@@ -168,12 +199,17 @@ class App:
                 self.logger.warning(f"未知状态: {current_state}, 执行操作")
             else:
                 self.logger.info(f"当前状态: {current_state}, 执行操作")
+
             try:
                 current_state = func()
             except Exception as e:
                 self.logger.error(f"执行操作时发生错误: {e}")
+                # 检测ADB相关错误
+                if self.qmsg_key and not self.qmsg_sent and any(keyword in str(e).lower() for keyword in ["adb", "device", "uiautomator", "screen"]) :
+                    if self.send_qmsg(f"SVB-AUTO：设备操作错误 - {str(e)}"):
+                         self.qmsg_sent = True
                 current_state = AppState.UNKNOWN
-            
+
             time.sleep(self.screen_interval)  # 等待一段时间，避免过于频繁的操作
             if current_state == AppState.UNKNOWN or current_state == AppState.BATTLE_DEFAULT:
                 self.fail_count += 1
@@ -183,15 +219,9 @@ class App:
                     # 发送通知到Qmsg
                     if self.fail_count >= MAX_FAILURE_COUNT * 1.5:
                         if self.qmsg_key and not self.qmsg_sent:
-                            qmsg_url = f"https://qmsg.zendee.cn/jsend/{self.qmsg_key}"
-                            payload = {"msg": "SVB-AUTO：连续失败次数过多，尝试点击屏幕。"}
-                            try:
-                                response = requests.post(qmsg_url, json=payload)
-                                response.raise_for_status()
-                                self.logger.info(f"通知发送成功，状态码: {response.status_code}")
-                                self.qmsg_sent = True  # 标记为已发送
-                            except requests.exceptions.RequestException as e:
-                                self.logger.error(f"发送通知失败: {str(e)}")
+                            # 使用新方法发送通知
+                            if self.send_qmsg("SVB-AUTO：连续失败次数过多，尝试点击屏幕。"):
+                                self.qmsg_sent = True  # 仅在发送成功时标记
                         elif self.qmsg_sent:
                             self.logger.info("Qmsg通知已发送，等待操作成功后重置")
                         else:
