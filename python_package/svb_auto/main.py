@@ -75,6 +75,7 @@ special_points = {
                     (566/1920, 620/1080),],
     'opponent': (960/1920, 85/1080),  # 对手主站者位置
     'return_to_battle_negative': (769/1920, 838/1080),  # 返回对战窗口 “否” 按钮位置
+    'return_to_battle_positive': (1110/1920, 838/1080),  # 返回对战窗口 “是” 按钮位置
     'return_to_battle_second': (960/1920, 838/1080),  # 返回对战第二个窗口 “确认” 按钮位置
 }
 
@@ -652,8 +653,8 @@ class App:
         处理返回对战窗口的情况
         """
         self.logger.info("处理返回对战窗口")
-        # 点击否按钮
-        self.click_relative(special_points['return_to_battle_negative'])
+        # 点击“是”按钮
+        self.click_relative(special_points['return_to_battle_positive'])
         time.sleep(1)
         # 点击确认按钮
         self.click_relative(special_points['return_to_battle_second'])
