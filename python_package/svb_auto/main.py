@@ -211,7 +211,7 @@ class App:
                 if self.fail_count >= MAX_FAILURE_COUNT:
                     self.logger.warning("连续失败次数过多，尝试点击屏幕中央")
                     # 发送通知到Qmsg
-                    if self.fail_count >= MAX_FAILURE_COUNT * 1.5:
+                    if self.fail_count >= MAX_FAILURE_COUNT * 2:
                         self.send_qmsg("SVB-AUTO：连续失败次数过多，尝试点击屏幕。")
                     self.click_center()
                     current_state = AppState.UNKNOWN # 重置状态为 UNKNOWN
