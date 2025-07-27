@@ -12,6 +12,7 @@ from datetime import datetime
 from typing import List, Dict, Tuple, Union, Optional
 from collections import OrderedDict
 import logging
+import requests
 
 MAX_FAILURE_COUNT = 50 # 最大失败次数
 
@@ -74,7 +75,9 @@ special_points = {
                     (566/1920, 620/1080),],
     'opponent': (960/1920, 85/1080),  # 对手主站者位置
     'return_to_battle_negative': (769/1920, 838/1080),  # 返回对战窗口 “否” 按钮位置
+    'return_to_battle_positive': (1110/1920, 838/1080),  # 返回对战窗口 “是” 按钮位置
     'return_to_battle_second': (960/1920, 838/1080),  # 返回对战第二个窗口 “确认” 按钮位置
+    'cost_point':(1173/1280, 500/720), # 能量点按钮位置
 }
 
 class App:
@@ -100,9 +103,9 @@ class App:
             skip_mode: bool = False,
             app_name = None,
             enable_auto_skip: bool = False,
-            logger: logging.Logger = logging.getLogger("svb_auto")):
+            logger: logging.Logger = logging.getLogger("svb_auto"),
+            qmsg_key: str = None):
         self.device = connect_with_adbutils(ip, port)
-
         self.detector = Detector(img_dir=img_dir)
         self.screen_interval = screen_interval
         self.skip_mode = skip_mode
@@ -141,6 +144,8 @@ class App:
         # some status variables
         self.fail_count = 0  # 用于记录失败次数，部分当前没处理的状态可能导致死循环，此时会尝试点击屏幕中央，然后返回 UNKNOWN 状态
         self.logger = logger
+        self.qmsg_key = qmsg_key
+        self.qmsg_sent = False
 
     def abs_position(self, relative_position: tuple[float, float]) -> tuple[int, int]:
         """
@@ -153,6 +158,34 @@ class App:
             int(relative_position[1] * self.image_height)
         )
     
+    def send_qmsg(self, message: str) -> bool:
+        """发送Qmsg通知
+
+        Args:
+            message: 要发送的通知内容
+
+        Returns:
+            是否发送成功
+        """
+        if not self.qmsg_key:
+            self.logger.info("未配置Qmsg密钥，跳过通知发送")
+            return False
+        if self.qmsg_sent:
+            self.logger.info("Qmsg通知已发送，跳过")
+            return False
+
+        qmsg_url = f"https://qmsg.zendee.cn/jsend/{self.qmsg_key}"
+        payload = {"msg": message}
+        try:
+            response = requests.post(qmsg_url, json=payload)
+            response.raise_for_status()
+            self.logger.info(f"Qmsg通知发送成功，状态码: {response.status_code}")
+            self.qmsg_sent = True
+            return True
+        except requests.exceptions.RequestException as e:
+            self.logger.error(f"发送Qmsg通知失败: {str(e)}")
+            return False
+
     def run(self):
         current_state = AppState.UNKNOWN
         while True:
@@ -164,21 +197,29 @@ class App:
                 self.logger.warning(f"未知状态: {current_state}, 执行操作")
             else:
                 self.logger.info(f"当前状态: {current_state}, 执行操作")
+
             try:
                 current_state = func()
             except Exception as e:
                 self.logger.error(f"执行操作时发生错误: {e}")
+                # 检测ADB相关错误
+                if any(keyword in str(e).lower() for keyword in ["adb", "device", "uiautomator", "screen"]) :
+                    self.send_qmsg(f"SVB-AUTO：设备操作错误 - {str(e)}")
                 current_state = AppState.UNKNOWN
-            
+
             time.sleep(self.screen_interval)  # 等待一段时间，避免过于频繁的操作
             if current_state == AppState.UNKNOWN or current_state == AppState.BATTLE_DEFAULT:
                 self.fail_count += 1
                 if self.fail_count >= MAX_FAILURE_COUNT:
                     self.logger.warning("连续失败次数过多，尝试点击屏幕中央")
+                    # 发送通知到Qmsg
+                    if self.fail_count >= MAX_FAILURE_COUNT * 2:
+                        self.send_qmsg("SVB-AUTO：连续失败次数过多，尝试点击屏幕。")
                     self.click_center()
                     current_state = AppState.UNKNOWN # 重置状态为 UNKNOWN
             else:
                 self.fail_count = 0
+                self.qmsg_sent = False  # 操作成功，重置Qmsg发送状态
     def click_center(self):
         """
         点击屏幕中央
@@ -467,9 +508,12 @@ class App:
         """
         self.logger.info("处理玩家回合")
         self.logger.info("尝试使用手牌")
-        # 点击手牌小图标位置，放大手牌列表
-        
-        for card_position in special_points['card_hand_large']:
+
+        # 点击能量点
+        self.click_relative(special_points['cost_point'])
+
+        for card_position in special_points['card_hand_large']: 
+            # 点击手牌小图标位置，放大手牌列表
             self.click_relative(special_points['card_hand_small'])
             time.sleep(0.2)
             # 从 card_position 拖拽到屏幕中心
@@ -613,8 +657,8 @@ class App:
         处理返回对战窗口的情况
         """
         self.logger.info("处理返回对战窗口")
-        # 点击否按钮
-        self.click_relative(special_points['return_to_battle_negative'])
+        # 点击“是”按钮
+        self.click_relative(special_points['return_to_battle_positive'])
         time.sleep(1)
         # 点击确认按钮
         self.click_relative(special_points['return_to_battle_second'])
@@ -649,6 +693,7 @@ if __name__ == "__main__":
     parser.add_argument("--skip_mode", action='store_true', help="是否启用空过模式，跳过玩家回合的操作")
     parser.add_argument("--global_server", action='store_true', help="服务器: False国服, True国际服繁体")
     parser.add_argument("--enable-auto-skip", action='store_true', help="启用自动检测分组切换空过模式功能")
+    parser.add_argument("--qmsg-key", type=str, default=None, help="Qmsg推送服务的密钥")
     args = parser.parse_args()
 
     # set command line logger
@@ -667,6 +712,7 @@ if __name__ == "__main__":
         app_name=args.app_name,
         skip_mode=args.skip_mode,
         enable_auto_skip = args.enable_auto_skip,  # 传递新参数
-        logger=logger
+        logger=logger,
+        qmsg_key=args.qmsg_key
     )
     app.run()
