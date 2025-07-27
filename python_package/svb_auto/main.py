@@ -77,6 +77,7 @@ special_points = {
     'return_to_battle_negative': (769/1920, 838/1080),  # 返回对战窗口 “否” 按钮位置
     'return_to_battle_positive': (1110/1920, 838/1080),  # 返回对战窗口 “是” 按钮位置
     'return_to_battle_second': (960/1920, 838/1080),  # 返回对战第二个窗口 “确认” 按钮位置
+    'cost_point':(1173/1280, 500/720), # 能量点按钮位置
 }
 
 class App:
@@ -507,9 +508,12 @@ class App:
         """
         self.logger.info("处理玩家回合")
         self.logger.info("尝试使用手牌")
-        # 点击手牌小图标位置，放大手牌列表
-        
-        for card_position in special_points['card_hand_large']:
+
+        # 点击能量点
+        self.click_relative(special_points['cost_point'])
+
+        for card_position in special_points['card_hand_large']: 
+            # 点击手牌小图标位置，放大手牌列表
             self.click_relative(special_points['card_hand_small'])
             time.sleep(0.2)
             # 从 card_position 拖拽到屏幕中心
